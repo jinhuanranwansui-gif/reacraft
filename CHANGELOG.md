@@ -3,6 +3,13 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+> **Which release to pin.** `v0.2.0`–`v0.5.0` are marked **pre-release**: the first day of the project,
+> kept for the record, not what you should use. Start at **v0.6.0** or later — that is where the guarded,
+> distrusted-input behaviour begins.
+>
+> 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
+> 那一版开始的。
+
 ## [0.11.0] — 2026-11-22
 
 Ground truth, for the case where the original can actually run.
