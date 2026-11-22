@@ -3,6 +3,41 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-11-22
+
+The masked literals come back, and the score lands in CI.
+
+### Added / 新增
+
+- **`decode` — masked literals recovered by arithmetic** (`src/core/decode.mjs`). A shield that
+  stores a literal as two integer halves plus a position term keeps the key in the file, so
+  `a[i] ^ b[i] ^ ((i * coef) & 0xffff)` returns the value with **no target code executed**. The
+  coefficient is read from the file's own decoder, and the pair is found by shape, not by name.
+  纯算术还原被掩码的字面量，不执行目标；普通文件不误报。
+- **SARIF 2.1.0 output** — `verify --sarif out.sarif`. `fail` → `error`, `partial` → `warning`,
+  `pending` → `note`, each rule carrying weight, acceptance kind and evidence ids, so a sweep can
+  run as GitHub code scanning instead of being read by hand.
+- **`bench`** — the whole claim in one command on generated fixtures: read, contract, score,
+  improvement, gap instruction, ledger tamper detection, shield detection, decoy marking, masked
+  literal recovery, SARIF shape, report rendering. 16 checks, ~72 ms, no network, no engine.
+  CI runs it on 3 OS × 3 Node.
+- **`reacraft_decode` DSH tool** — the same recovery from inside a Harness session.
+- Obligation and capability for recovered values (`ob-decoded`, `hidden-strings`), so a rebuild can
+  be held to a string that no plain scan finds.
+
+### Verified / 实测
+
+`bla-agents` crackme v6, both hardened artifacts, offline:
+
+```
+vault.cjs        1     0x5d   "TEE_ENCLAVE_MASTER_KEY_c9cd_SLOT_0xc23c89e5"
+panel.html       1     0x5d   "TEE_ENCLAVE_MASTER_KEY_2dcd_SLOT_0x397443e9"
+```
+
+BLA's own red-team table records REA returning 0 of 3 known values at 1×, 4× and 64× budgets. This
+does not out-read REA at anything REA does; it closes the one case a static reader was told it could
+not close, because the "encryption" was a split whose halves ship together.
+
 ## [0.2.1] — 2026-11-22
 
 Reads targets that fight back.

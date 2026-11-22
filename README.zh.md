@@ -162,6 +162,31 @@ detected true (high)   bla-interlock-corpus · bla-generated-symbols ×452 · de
 在报告里点名。要拿回掩码字面量，只有两条路——跑起来 hook 解码函数，或把解码函数连同参数抠出来离线求值，
 两者都是动态活。
 
+### 掩码字面量是能拿回来的
+
+BLA 的文档说还原 split-share 字面量「要执行解码器：跑程序把变量打出来，或者把函数连同参数从文件里抠出来」。
+后半句才是关键：**那两个整数数组就是密钥，而且就放在文件里**。所以它是算术，不是秘密：
+
+```bash
+node src/cli.mjs decode samples/hardened-vault.cjs
+# 1     0x5d   "TEE_ENCLAVE_MASTER_KEY_c9cd_SLOT_0xc23c89e5"
+```
+
+还原式是 `a[i] ^ b[i] ^ ((i * coef) & 0xffff)`，`coef` 从文件自己的解码函数里读出来。
+crackme v6 的两个文件（`vault.cjs` 与 `panel.html`）都验证过；普通构建上不会误触发——下面 bench 的
+`decode` 两项守着这条。
+
+## 接进 CI
+
+重建漏掉一条义务，是那棵树的缺陷，所以它也该是一条 SARIF 结果：
+
+```bash
+node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
+```
+
+`fail` → `error`，`partial` → `warning`，`pending` → `note`；每条 rule 带权重、验收方式和 evidence id。
+把文件丢进 GitHub code scanning，分数就贴在 PR 旁边。
+
 ## 局限（先说清楚）
 
 - 只做静态。不执行目标。行为是人来签的义务。
@@ -174,9 +199,23 @@ detected true (high)   bla-interlock-corpus · bla-generated-symbols ×452 · de
 ## 自己验一遍
 
 ```bash
-node --test                    # 11 个测试，无外部样本，无网络
-node src/cli.mjs selftest      # 端到端：读 → 规格 → 打分 → 差额 → 篡改检测
-node src/cli.mjs all examples/hello/target.txt --name demo --rebuild examples/hello/rebuild
+node --test                    # 16 个测试，无外部样本，无网络
+node src/cli.mjs bench         # 整条主张，端到端，全用生成的样本
+node src/cli.mjs selftest      # 读 → 规格 → 打分 → 差额 → 篡改检测
+```
+
+`bench` 是「要不要信它」该跑的那条：
+
+```
+reacraft bench — 16/16 in 72ms
+PASS read-format · read-evidence · read-stable
+PASS spec-obligations
+PASS verify-partial · verify-improves · verify-similarity
+PASS gaps-request
+PASS ledger-intact · ledger-tamper
+PASS shield-detect · shield-decoy
+PASS decode-recover · decode-no-exec
+PASS sarif-shape · report-markdown
 ```
 
 ### 真跑过一次

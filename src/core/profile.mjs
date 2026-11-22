@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { readTarget, extractEndpoints } from './target.mjs';
 import { STRING_RULES, API_RULES, API_SETS, JAVA_RULES, apiHit } from './rules.mjs';
 import { assessShield, filterEndpoints } from './shield.mjs';
+import { decodeShares } from './decode.mjs';
 
 export const PROFILE_SCHEMA = 'reacraft.profile/2';
 
@@ -208,14 +209,40 @@ export function buildProfile(file, { name = null } = {}) {
     profile.shield = shield;
     profile.endpoints = filterEndpoints(profile.endpoints, true);
     if (profile.strings) profile.strings.urls = profile.endpoints;
+
+    // A masked literal is stored as two integer arrays plus a position term, and both arrays
+    // ship in the file — so the value is arithmetic, not a secret. Recover it and put it back
+    // where the rest of the evidence lives.
+    if (t.text) {
+      const dec = decodeShares(t.text);
+      if (dec.decoded.length) {
+        profile.decoded = dec;
+        for (const d of dec.decoded.slice(0, 24)) {
+          profile.strings.notable.push({
+            rule: 'decoded',
+            value: d.value,
+            id: evidenceId('decoded', d.value),
+            context: 'recovered from a masked literal (coefficient 0x' + d.coefficient.toString(16) + ')',
+          });
+        }
+        shield.readable.maskedLiterals = 'recovered';
+        shield.recovered = dec.decoded.length;
+        shield.advice = shield.advice.map((a) => (a.startsWith('masked string literals')
+          ? 'masked string literals: ' + dec.decoded.length + ' recovered offline — the two share arrays are the key and they ship in the file (no target code was run)'
+          : a));
+      }
+    }
+
     profile.unknowns = profile.unknowns.filter((u) => u.id !== 'u-shield');
     profile.unknowns.unshift({
       id: 'u-shield',
       question: 'this target carries a shield (' + shield.signals.map((s) => s.id).join(', ') + ')',
-      how_to_settle: shield.readable.maskedLiterals === 'none-detected'
-        ? 'decoys are marked and excluded; re-read any value you plan to rely on'
-        : 'masked literals cannot be recovered statically: run the program and hook the decoder, or evaluate the decoder offline',
-      severity: 'high',
+      how_to_settle: shield.readable.maskedLiterals === 'recovered'
+        ? 'masked literals recovered; re-check any decoy-marked value before relying on it'
+        : shield.readable.maskedLiterals === 'none-detected'
+          ? 'decoys are marked and excluded; re-read any value you plan to rely on'
+          : 'masked literals cannot be recovered statically: run the program and hook the decoder, or evaluate the decoder offline',
+      severity: shield.readable.maskedLiterals === 'recovered' ? 'medium' : 'high',
     });
   }
 

@@ -196,6 +196,34 @@ poison is labelled, and the part that a static reader genuinely loses is named i
 not a claim to break the shield. To recover masked literals you have to run the program and hook the
 decoder, or lift the decoding function and evaluate it offline — both are dynamic work by design.
 
+### The masked literals do come back
+
+BLA's documentation says recovering a split-share literal "takes running the decoder: executing the
+program and printing the variable, or copying the function and its arguments out of the file". The
+second half is the point: **the two integer halves are the key, and they ship in the file**. So the
+value is arithmetic, and this reads it without running anything:
+
+```bash
+node src/cli.mjs decode samples/hardened-vault.cjs
+# 1     0x5d   "TEE_ENCLAVE_MASTER_KEY_c9cd_SLOT_0xc23c89e5"
+```
+
+The reconstruction is `a[i] ^ b[i] ^ ((i * coef) & 0xffff)`, with `coef` taken from the file's own
+decoder. Verified on both files of crackme v6 (`vault.cjs` and `panel.html`), and it fires on
+nothing in an ordinary build — see `decode` in the bench below.
+
+## Into CI
+
+A rebuild that misses an obligation is a defect in that tree, so it can also be a SARIF result:
+
+```bash
+node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
+```
+
+`fail` becomes `error`, `partial` becomes `warning`, `pending` becomes `note`; each rule carries its
+weight, acceptance kind and evidence ids. Drop the file into GitHub code scanning and the score lands
+next to the pull request.
+
 ## Limits, stated up front
 
 - Static only. Nothing from the target is executed. Behaviour is a human obligation.
@@ -210,8 +238,23 @@ decoder, or lift the decoding function and evaluate it offline — both are dyna
 ## Verify the claims
 
 ```bash
-node --test          # 11 tests, no fixtures, no network
-node src/cli.mjs selftest   # end-to-end: read → spec → verify → gaps → ledger tamper check
+node --test          # 16 tests, no fixtures, no network
+node src/cli.mjs bench       # the whole claim, end to end, on generated fixtures
+node src/cli.mjs selftest    # read → spec → verify → gaps → ledger tamper check
+```
+
+`bench` is the one to run if you are deciding whether to trust this:
+
+```
+reacraft bench — 16/16 in 72ms
+PASS read-format · read-evidence · read-stable
+PASS spec-obligations
+PASS verify-partial · verify-improves · verify-similarity
+PASS gaps-request
+PASS ledger-intact · ledger-tamper
+PASS shield-detect · shield-decoy
+PASS decode-recover · decode-no-exec
+PASS sarif-shape · report-markdown
 ```
 
 The selftest includes the bug that mattered: a rebuild with a failing obligation once scored

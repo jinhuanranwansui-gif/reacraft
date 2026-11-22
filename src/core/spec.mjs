@@ -213,6 +213,26 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
     });
   }
 
+  // ---- values that were hidden on purpose and recovered offline
+  const decoded = (profile.strings?.notable || []).filter((n) => n.rule === 'decoded' && !n.decoy);
+  if (decoded.length) {
+    addObligation({
+      id: 'ob-decoded',
+      item: 'the rebuild keeps the values that were masked in the original',
+      acceptance: 'presence',
+      patterns: [...new Set(decoded.map((d) => d.value))].slice(0, 8),
+      weight: 4,
+      why: 'these strings were hidden on purpose; carrying them is the difference between a rebuild and a lookalike',
+      evidence: decoded.slice(0, 4).map((d) => d.id),
+    });
+    addCap('hidden-strings', {
+      weight: 4,
+      statement: 'keeps ' + decoded.length + ' masked string(s) that no plain scan finds',
+      evidence: decoded.slice(0, 4).map((d) => d.id),
+      samples: decoded.slice(0, 3).map((d) => d.value),
+    });
+  }
+
   // ---- a manual gate that a reviewer must sign, never auto-passed
   addObligation({
     id: 'ob-behaviour',

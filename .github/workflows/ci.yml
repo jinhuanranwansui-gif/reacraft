@@ -21,7 +21,9 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: unit tests
         run: node --test
-      - name: built-in end-to-end selftest
+      - name: bench (the whole claim, end to end)
+        run: node src/cli.mjs bench
+      - name: built-in selftest
         run: node src/cli.mjs selftest
       - name: probe reports engines without them
         run: node src/cli.mjs probe --json

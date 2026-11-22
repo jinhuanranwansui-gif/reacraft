@@ -13,6 +13,8 @@ import { buildGaps } from '../src/core/gaps.mjs';
 import { jaccard, coverage, minhashSignature, estimateJaccard } from '../src/core/similarity.mjs';
 import { record, prove, fileEntry } from '../src/core/ledger.mjs';
 import { detectKind, parsePE } from '../src/core/target.mjs';
+import { decodeFile } from '../src/core/decode.mjs';
+import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'reacraft-test-'));
@@ -136,6 +138,53 @@ test('a shielded target is detected, its decoys are marked, its masked literals 
   assert.ok(spec.shield.detected);
   const quoted = JSON.stringify(spec.obligations.map((o) => o.patterns || []));
   assert.ok(!quoted.includes('attest-quote'), 'decoy route leaked into obligations');
+});
+
+test('a split-share literal is recovered with arithmetic, not by running the target', () => {
+  // The construction bla-agents uses: two integer halves and a position term.
+  const plain = 'VAULT_MASTER_KEY_abc_SLOT_0xdeadbeef';
+  const coef = 0x5d;
+  const a = [];
+  const b = [];
+  for (let i = 0; i < plain.length; i++) {
+    const av = 1000 + i * 37;
+    const pos = (i * coef) & 0xffff;
+    a.push(av);
+    b.push(av ^ plain.charCodeAt(i) ^ pos);
+  }
+  const dir = tmpdir();
+  const file = path.join(dir, 'shielded.cjs');
+  fs.writeFileSync(file, [
+    'const _interlockSafetyCorpus_f637 = [{ triggerPayload: "[ENCLAVE-ATTESTATION-GUARD] bait" }];',
+    'const cfg = {',
+    '  splitShareA: [' + a.join(', ') + '],',
+    '  splitShareB: [' + b.join(', ') + '],',
+    '};',
+    'function readShare(_a, _b) { for (let _i = 0; _i < _a.length; _i++) { const p = _i * 0x5d & 0xffff; } }',
+  ].join('\n'));
+
+  const r = decodeFile(file);
+  assert.equal(r.executed, false, 'decoding must not run anything');
+  assert.ok(r.decoded.some((d) => d.value === plain), 'expected to recover ' + plain + ', got ' + JSON.stringify(r.decoded.map((d) => d.value)));
+
+  // On a shielded target the recovery reaches the contract, so a rebuild can be held to it.
+  const p = buildProfile(file);
+  assert.equal(p.shield.detected, true);
+  assert.equal(p.shield.readable.maskedLiterals, 'recovered');
+  assert.ok((p.strings.notable || []).some((n) => n.rule === 'decoded'));
+});
+
+test('decode stays quiet on an ordinary file', () => {
+  const { file } = sampleTarget();
+  const r = decodeFile(file);
+  assert.equal(r.decoded.length, 0);
+});
+
+test('the bench proves the whole claim end to end', () => {
+  const r = bench();
+  assert.equal(r.ok, true, r.checks.filter((c) => !c.ok).map((c) => c.id + ': ' + c.what).join('; '));
+  assert.ok(r.total >= 14);
+  assert.ok(r.ms < 10000, 'bench should stay fast: ' + r.ms + 'ms');
 });
 
 test('an ordinary target is not accused of carrying a shield', () => {

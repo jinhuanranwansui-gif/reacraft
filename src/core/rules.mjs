@@ -105,4 +105,5 @@ export const CAPABILITIES = {
   electron: { statement: 'is an Electron application', must: 'the rebuild ships the same renderer/main split and preload surface', check: 'manual' },
   mobile: { statement: 'ships as a mobile package', must: 'the rebuild declares the same components and permissions', check: 'manual' },
   wasm: { statement: 'runs WebAssembly', must: 'the rebuild exposes the same imports and exports', check: 'symbols' },
+  'hidden-strings': { statement: 'carries strings that were masked to defeat a text scan', must: 'the rebuild keeps those exact values', check: 'endpoints' },
 };

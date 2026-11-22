@@ -1,7 +1,7 @@
-#!/usr/bin/env node
-// reacraft — read a target, write the contract, rebuild it, score the rebuild, close the gap.
+﻿#!/usr/bin/env node
+// reacraft 鈥?read a target, write the contract, rebuild it, score the rebuild, close the gap.
 //
-// Exit codes: 0 ok · 1 usage or io error · 2 gate not met (CI can rely on this)
+// Exit codes: 0 ok 路 1 usage or io error 路 2 gate not met (CI can rely on this)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,6 +14,9 @@ import { writeReport } from './core/report.mjs';
 import { record, prove, fileEntry, sha256File } from './core/ledger.mjs';
 import { probeEngines, probePartners } from './core/engines.mjs';
 import { resolveCraft, resolveRea, craftCommand, run as runCli, reaAnalyze } from './core/partners.mjs';
+import { decodeFile } from './core/decode.mjs';
+import { bench } from './core/bench.mjs';
+import { toSarif } from './core/sarif.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -35,7 +38,7 @@ function parseArgs(argv) {
   return out;
 }
 
-// --sign id=text ... → { id: text }
+// --sign id=text ... 鈫?{ id: text }
 function signNotes(args) {
   const notes = {};
   for (const s of Array.isArray(args.sign) ? args.sign : []) {
@@ -211,14 +214,20 @@ function cmdVerify(args) {
   const vFile = writeJson(path.join(dir, 'verification.json'), v);
   const gaps = buildGaps({ ...spec, gate }, v);
   const gFile = writeJson(path.join(dir, 'gaps.json'), gaps);
+  let sarifFile = null;
+  if (typeof args.sarif === 'string') {
+    sarifFile = path.resolve(args.sarif);
+    fs.mkdirSync(path.dirname(sarifFile), { recursive: true });
+    fs.writeFileSync(sarifFile, JSON.stringify(toSarif({ ...spec, gate }, v, { rebuildDir: rebuild, version: '0.3.0' }), null, 2), 'utf8');
+  }
   record(dir, 'verify', {
     input: [fileEntry(path.join(dir, 'spec.json')), { name: 'rebuild-tree', sha256: null, bytes: null, path: rebuild }],
-    output: [fileEntry(vFile), fileEntry(gFile)],
+    output: [fileEntry(vFile), fileEntry(gFile), ...(sarifFile ? [fileEntry(sarifFile)] : [])],
     note: 'score=' + v.score + ' gate=' + gate + ' ' + v.gateResult,
   });
 
   const lines = [];
-  lines.push('score    ' + (v.score === null ? 'n/a' : v.score + '%') + '   gate=' + gate + '% → ' + v.gateResult);
+  lines.push('score    ' + (v.score === null ? 'n/a' : v.score + '%') + '   gate=' + gate + '% 鈫?' + v.gateResult);
   lines.push('items    pass=' + v.pass + ' partial=' + v.partial + ' fail=' + v.fail + ' pending=' + v.pending + '   files=' + v.filesScanned);
   if (v.similarity) {
     const s = v.similarity;
@@ -231,7 +240,8 @@ function cmdVerify(args) {
     lines.push('open gaps (' + gaps.open + '), highest weight first:');
     lines.push(summarise(gaps));
   }
-  emit(args, { slug, verification: v, gaps }, lines.join('\n'));
+  if (sarifFile) lines.push('', 'sarif    ' + sarifFile);
+  emit(args, { slug, verification: v, gaps, sarif: sarifFile }, lines.join('\n'));
   return v.gateResult === 'below' ? 2 : 0;
 }
 
@@ -250,6 +260,32 @@ function cmdGaps(args) {
   }
   emit(args, gaps, gaps.gaps.map((g) => String(g.weight).padStart(2) + '  ' + g.kind.padEnd(8) + g.id.padEnd(24) + g.action).join('\n') + '\n\n--- fix request ---\n' + gaps.fixRequest);
   return 0;
+}
+
+function cmdDecode(args) {
+  const arg = args._[1];
+  if (!arg) fail('decode needs a target path or a project slug');
+  let file = arg;
+  if (!fs.existsSync(file)) {
+    const dir = projDir(String(arg));
+    const spec = readJson(path.join(dir, 'spec.json'));
+    const prof = readJson(path.join(dir, 'profile.json'));
+    file = (spec && spec.target) || (prof && prof.target) || null;
+    if (!file || !fs.existsSync(file)) fail('no target for ' + arg + ' (not a file, not a project)');
+  }
+  const r = decodeFile(path.resolve(file));
+  const lines = [
+    'method   ' + r.method,
+    'executed ' + r.executed + '   (arithmetic over constants the file carries; no target code ran)',
+    'arrays   ' + r.arrays + '   coefficients ' + r.coefficients.length + '   combinations tried ' + r.tried,
+    'decoded  ' + r.decoded.length,
+  ];
+  for (const d of r.decoded.slice(0, 20)) {
+    lines.push('  ' + String(d.score).padEnd(5) + ' 0x' + d.coefficient.toString(16).padEnd(4) + ' ' + JSON.stringify(d.value.slice(0, 100)));
+  }
+  if (!r.decoded.length) lines.push('  ' + r.note);
+  emit(args, r, lines.join('\n'));
+  return r.decoded.length ? 0 : 2;
 }
 
 function cmdReport(args) {
@@ -333,6 +369,12 @@ async function cmdAll(args) {
   return Math.max(rc1, rc2);
 }
 
+function cmdBench(args) {
+  const r = bench();
+  emit(args, r, r.lines.join('\n'));
+  return r.ok ? 0 : 2;
+}
+
 function cmdSelftest(args) {
   // A rebuild of a known shape, scored end to end, with no engine and no network.
   const result = selftestImpl();
@@ -396,7 +438,7 @@ function selftestImpl() {
 // ---------------------------------------------------------------- help
 
 function cmdHelp() {
-  say('reacraft — read a target, write the contract, rebuild it, score the rebuild, close the gap.');
+  say('reacraft 鈥?read a target, write the contract, rebuild it, score the rebuild, close the gap.');
   say('');
   say('  probe                                  engines, partners, project home');
   say('  rea <target> [--name slug] [--deep]    static read: format, symbols, strings, evidence ids');
@@ -405,13 +447,15 @@ function cmdHelp() {
   say('  verify <slug> --rebuild <dir> [--gate N] [--sign id=text]  score the rebuild, write gaps');
   say('      --sign ob-behaviour="ran both, X differs"   sign one manual obligation (repeatable)');
   say('  gaps <slug> [--apply]                  show the fix plan, optionally write it into the spec');
+  say('  decode <slug|path>                     recover masked string literals without running the target');
   say('  report <slug> [--html]                 report.md + report.json (+ report.html)');
   say('  prove <slug>                           recompute the evidence chain');
   say('  status [--json]                        every project and its stage');
   say('  all <target> [--rebuild dir]           rea + spec + optional verify + report');
   say('  selftest                               run the built-in end-to-end check');
+  say('  bench                                  the full claim, run end to end on generated fixtures');
   say('');
-  say('Exit codes: 0 ok · 1 usage/io · 2 gate not met or chain broken.');
+  say('Exit codes: 0 ok 路 1 usage/io 路 2 gate not met or chain broken.');
   say('Project home: ' + HOME + ' (override with REACRAFT_HOME)');
 }
 
@@ -419,8 +463,8 @@ function cmdHelp() {
 
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
-  gaps: cmdGaps, report: cmdReport, prove: cmdProve, status: cmdStatus, all: cmdAll,
-  selftest: cmdSelftest, help: cmdHelp,
+  gaps: cmdGaps, decode: cmdDecode, report: cmdReport, prove: cmdProve, status: cmdStatus, all: cmdAll,
+  selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 
 const args = parseArgs(process.argv.slice(2));

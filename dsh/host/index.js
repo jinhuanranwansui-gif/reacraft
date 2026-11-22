@@ -23,6 +23,7 @@ import { writeReport } from '../../src/core/report.mjs';
 import { record, prove, fileEntry } from '../../src/core/ledger.mjs';
 import { probeEngines, probePartners } from '../../src/core/engines.mjs';
 import { craftCommand } from '../../src/core/partners.mjs';
+import { decodeFile } from '../../src/core/decode.mjs';
 
 export const name = 'reacraft';
 export const inject = ['tools'];
@@ -209,6 +210,40 @@ export async function apply(ctx, rawConfig) {
       return { ok: true, score: v.score, gate: v.gateResult, similarity: v.similarity?.score ?? null, openGaps: gaps.open, verification: v, gaps, text: lines.join('\n') };
     },
     presentCall: (args) => ({ card: 'generic', title: 'Verify rebuild', kind: 'other', rawInput: { slug: args?.slug } }),
+  });
+
+  tool(ctx, {
+    name: 'reacraft_decode',
+    description: 'Recover masked string literals from a hardened target. A shield that stores a literal as two integer halves plus a position term keeps the key in the file, so the value comes back with arithmetic alone — no target code is executed. Reports every reconstruction with its coefficient and printable score.',
+    parameters: {
+      target: { type: 'string', required: true, description: 'Absolute path, or a project slug whose target is already recorded.' },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_a, v) => text(v.text),
+    },
+    async execute(args) {
+      let file = path.resolve(String(args.target));
+      if (!fs.existsSync(file)) {
+        const { dir } = projectDir(String(args.target), config);
+        const spec = readJson(path.join(dir, 'spec.json'));
+        const prof = readJson(path.join(dir, 'profile.json'));
+        file = (spec && spec.target) || (prof && prof.target) || null;
+        if (!file || !fs.existsSync(file)) throw new Error('no such file and no such project: ' + args.target);
+      }
+      const r = decodeFile(file);
+      const lines = [
+        'file     ' + file,
+        'method   ' + r.method,
+        'executed ' + r.executed + '  (arithmetic over constants the file carries)',
+        'arrays   ' + r.arrays + '   coefficients ' + r.coefficients.length + '   tried ' + r.tried,
+        'decoded  ' + r.decoded.length,
+      ];
+      for (const d of r.decoded.slice(0, 12)) lines.push('  ' + String(d.score).padEnd(5) + ' 0x' + d.coefficient.toString(16).padEnd(4) + ' ' + JSON.stringify(d.value.slice(0, 100)));
+      if (!r.decoded.length) lines.push('  ' + r.note);
+      return { ok: r.decoded.length > 0, decoded: r.decoded, method: r.method, executed: r.executed, text: lines.join('\n') };
+    },
+    presentCall: (args) => ({ card: 'generic', title: 'Decode masked literals', kind: 'other', rawInput: { target: args?.target } }),
   });
 
   tool(ctx, {
