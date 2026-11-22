@@ -657,7 +657,10 @@ no rebuild could contain verbatim. That is the bug the templated-URL rule fixes.
 - The v0.1 `lib/` pipeline and `reacraft.mjs` moved to `legacy/` (not shipped). The v0.2 modules
   replace them; the old skill file was rewritten in place.
 
-## [0.1.0] — 2026-11-16
+## [0.1.0] — 2026-11-16 — *internal, never released*
+
+No tag and no commit: this was the design note the project started from, kept here because everything
+after it argues with it. 没有 tag 也没有 commit：这是项目起点的设计稿，留在这里是因为后面每一版都在跟它争论。
 
 Internal first cut: `rea` → `spec` → `craft` → `verify` → `report` over `projects/<slug>/`, with a
 regex-based checklist and a Markdown report. Never released publicly.
