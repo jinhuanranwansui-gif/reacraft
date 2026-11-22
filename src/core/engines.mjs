@@ -48,6 +48,16 @@ export function which(name, extraDirs = []) {
   return null;
 }
 
+// A .cmd/.bat cannot be spawned directly on Windows; route it through ComSpec as an
+// argument vector. REA installs as rea.cmd, so this is the difference between "found" and
+// "answers".
+export function spawnSpec(exe, args) {
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(exe)) {
+    return { cmd: process.env.ComSpec || 'cmd.exe', args: ['/c', exe, ...args] };
+  }
+  return { cmd: exe, args };
+}
+
 // One probe per engine. A version string is enough: the pipeline only needs to know
 // whether a deeper stage can run.
 export function probeOne(spec) {
@@ -59,11 +69,13 @@ export function probeOne(spec) {
   if (!exe) return { id: spec.id, found: false, role: spec.role, hint: (spec.extra && spec.extra[0]) || spec.names[0] };
   let version = '';
   try {
-    const r = spawnSync(exe, spec.args, { encoding: 'utf8', timeout: 20000, windowsHide: true });
+    const s1 = spawnSpec(exe, spec.args);
+    const r = spawnSync(s1.cmd, s1.args, { encoding: 'utf8', timeout: 20000, windowsHide: true });
     version = ((r.stdout || '') + (r.stderr || '')).trim().split(/\r?\n/)[0].slice(0, 120);
     // Some CLIs answer --help but not --version; the first line still names the version.
     if (!version) {
-      const h = spawnSync(exe, ['--help'], { encoding: 'utf8', timeout: 20000, windowsHide: true });
+      const s2 = spawnSpec(exe, ['--help']);
+      const h = spawnSync(s2.cmd, s2.args, { encoding: 'utf8', timeout: 20000, windowsHide: true });
       version = ((h.stdout || '') + (h.stderr || '')).trim().split(/\r?\n/)[0].slice(0, 120);
     }
   } catch (e) {
@@ -82,13 +94,15 @@ export function probePartners({ reaPath = null, craftPath = null } = {}) {
   const out = { rea: null, craft: null };
   const rea = reaPath || (probeOne(ENGINE_SPECS.find((s) => s.id === 'rea')) || {}).path;
   if (rea) {
-    const r = spawnSync(rea, ['capabilities'], { encoding: 'utf8', timeout: 60000, windowsHide: true });
+    const s = spawnSpec(rea, ['capabilities']);
+    const r = spawnSync(s.cmd, s.args, { encoding: 'utf8', timeout: 60000, windowsHide: true });
     const text = (r.stdout || '') + (r.stderr || '');
     out.rea = { ok: r.status === 0, path: rea, lines: text.trim().split(/\r?\n/).length, head: text.trim().split(/\r?\n/).slice(0, 6) };
   }
   const craft = craftPath || (probeOne(ENGINE_SPECS.find((s) => s.id === 'craft-anything')) || {}).path;
   if (craft) {
-    const r = spawnSync(craft, ['capabilities', '--format', 'json'], { encoding: 'utf8', timeout: 60000, windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
+    const s = spawnSpec(craft, ['capabilities', '--format', 'json']);
+    const r = spawnSync(s.cmd, s.args, { encoding: 'utf8', timeout: 60000, windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
     let tools = null;
     let mode = null;
     try {

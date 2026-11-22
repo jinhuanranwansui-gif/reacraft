@@ -40,6 +40,16 @@ export function parseJsonLoose(text) {
   try { return JSON.parse(t.slice(start, end + 1)); } catch { return null; }
 }
 
+// Node refuses to spawn a .cmd/.bat directly on Windows (it would need a shell, and doing
+// that implicitly was removed for security). REA ships as `rea.cmd`, so route those through
+// ComSpec explicitly — an argument vector, never a concatenated command string.
+export function spawnSpec(exe, args) {
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(exe)) {
+    return { cmd: process.env.ComSpec || 'cmd.exe', args: ['/c', exe, ...args] };
+  }
+  return { cmd: exe, args };
+}
+
 // Run one CLI with output redirected to files, then read those files back.
 export function run(cli, args, { cwd = null, timeout = 300000, env = null } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reacraft-'));
@@ -49,7 +59,8 @@ export function run(cli, args, { cwd = null, timeout = 300000, env = null } = {}
   const efd = fs.openSync(errFile, 'w');
   let res;
   try {
-    res = spawnSync(cli, args, {
+    const spec = spawnSpec(cli, args);
+    res = spawnSync(spec.cmd, spec.args, {
       cwd: cwd || undefined,
       stdio: ['ignore', ofd, efd],
       timeout,
