@@ -1,0 +1,159 @@
+{
+  "schema": "reacraft.recipes/1",
+  "note": "What to do once a domain is recognised. Every step is a command a person can run and an output they can check; nothing here is a tutorial paragraph. `map` reads this file to build the coverage table.",
+  "domains": [
+    {
+      "id": "pe-native",
+      "title": "Windows PE (native)",
+      "detect": "kind = pe-native",
+      "tools": ["node src/cli.mjs rea", "dumpbin /imports", "r2 -A", "pe-bear"],
+      "steps": [
+        { "when": "always", "run": "node src/cli.mjs rea <file> --name <slug>", "expect": "sections with entropy, import count, string classes, protection verdict" },
+        { "when": "drm.codeEncrypted = false", "run": "node src/cli.mjs spec <slug>", "expect": "obligations from real strings, not stub noise" },
+        { "when": "drm.codeEncrypted = true", "run": "dump the image at the original entry point after the stub runs; then rea the dump", "expect": "sections with entropy below 7.2" },
+        { "when": "drm.imageEncrypted = true", "run": "stop: find the loader or a readable build first", "expect": "readable.code = true before any behaviour claim" },
+        { "when": "a masked literal looks like split-share", "run": "node src/cli.mjs decode <slug>", "expect": "the value, plus the coefficient that produced it" }
+      ],
+      "pitfalls": [
+        "entropy 8.0 on several sections at once means the image is encrypted, not packed — a wrapper keeps .pdata readable",
+        "an entry point outside .text is a wrapper taking control, not corruption",
+        "imports of a packed binary describe the stub, not the program"
+      ]
+    },
+    {
+      "id": "pe-managed",
+      "title": ".NET assemblies",
+      "detect": "kind = pe-managed",
+      "tools": ["ilspycmd", "dnSpy", "node src/cli.mjs rea"],
+      "steps": [
+        { "when": "always", "run": "ilspycmd -p -o out <file>", "expect": "a project tree; then run rea on the tree" },
+        { "when": "the assembly is obfuscated", "run": "de4dot <file> then ilspycmd", "expect": "readable type and method names" },
+        { "when": "licensing logic is the question", "run": "search for License, Trial, Activation in the decompiled tree", "expect": "a decision function with a boolean return" }
+      ],
+      "pitfalls": [
+        "a .NET assembly looks like a native PE to a section reader; the CLR header is the tell",
+        "string encryption shows as a call into a decryptor with a byte[] argument"
+      ]
+    },
+    {
+      "id": "elf",
+      "title": "ELF (Linux)",
+      "detect": "kind = elf",
+      "tools": ["readelf -a", "objdump -d", "nm -D", "r2 -A"],
+      "steps": [
+        { "when": "always", "run": "readelf -d <file>", "expect": "NEEDED libraries, which become ob-elf-libs" },
+        { "when": "statically linked", "run": "nm <file> | head -50", "expect": "symbols if not stripped; if stripped, go to r2" },
+        { "when": "a Go or Rust binary", "run": "strings | grep -E 'go1\\.|rustc'", "expect": "runtime markers that explain the symbol shape" }
+      ],
+      "pitfalls": ["a stripped static binary has no dynamic dependencies to check, so ob-elf-libs is empty by fact, not by failure"]
+    },
+    {
+      "id": "macho",
+      "title": "Mach-O (macOS / iOS)",
+      "detect": "kind = macho",
+      "tools": ["otool -L", "codesign -d", "class-dump", "jtool2"],
+      "steps": [
+        { "when": "always", "run": "otool -L <file>", "expect": "linked frameworks" },
+        { "when": "the binary is signed", "run": "codesign -d --entitlements - <file>", "expect": "entitlements, which say more about capability than the imports do" }
+      ],
+      "pitfalls": ["a fat binary holds several architectures; read the slice you care about"]
+    },
+    {
+      "id": "android",
+      "title": "Android APK / DEX",
+      "detect": "kind = apk | dex",
+      "tools": ["apktool d", "jadx -d", "frida", "adb"],
+      "steps": [
+        { "when": "always", "run": "jadx -d out <apk>", "expect": "java sources; ob-android-classes comes from here" },
+        { "when": "resources matter", "run": "apktool d -f <apk>", "expect": "AndroidManifest.xml in readable form" },
+        { "when": "runtime behaviour is the question", "run": "frida -U -f <pkg> -l hook.js", "expect": "argument values at the call you hooked" }
+      ],
+      "pitfalls": [
+        "the manifest's exported components are the attack surface, not the class count",
+        "native libraries inside an APK need the ELF recipe, not the DEX one"
+      ]
+    },
+    {
+      "id": "java",
+      "title": "Java archives",
+      "detect": "kind = jar | class",
+      "tools": ["javap -p -c", "jadx", "cfr"],
+      "steps": [
+        { "when": "always", "run": "unzip -l <jar> | head -40", "expect": "package layout, which becomes ob-java-surface" },
+        { "when": "a single class", "run": "javap -p -c <class>", "expect": "bytecode with a readable constant pool" }
+      ],
+      "pitfalls": ["obfuscated names carry no meaning; rely on structure (interfaces, annotations) instead"]
+    },
+    {
+      "id": "electron",
+      "title": "Electron / asar",
+      "detect": "kind = asar | electron",
+      "tools": ["npx asar extract", "node src/cli.mjs rea"],
+      "steps": [
+        { "when": "always", "run": "npx asar extract <app.asar> out", "expect": "a source tree; ob-electron-shape checks main/preload/renderer split" },
+        { "when": "the renderer is bundled", "run": "search the bundle for mainWindow.loadFile and contextBridge", "expect": "the actual entry points, not the bundled module count" }
+      ],
+      "pitfalls": ["a minified bundle still names IPC channels as string literals — those are the contract"]
+    },
+    {
+      "id": "script",
+      "title": "Script bundles (JS / Python / Lua)",
+      "detect": "kind = javascript | python | lua | text",
+      "tools": ["node src/cli.mjs rea", "ast-grep", "esbuild --minify=false"],
+      "steps": [
+        { "when": "before reading the logic", "run": "node src/cli.mjs rea <file>", "expect": "guard verdict first: a file that tells the model what to conclude must not be trusted" },
+        { "when": "minified", "run": "prettier --parser babel <file> | head", "expect": "readable control flow" }
+      ],
+      "pitfalls": ["a string constant the program never uses can still be an instruction aimed at whoever reads it"]
+    },
+    {
+      "id": "protection",
+      "title": "Packing, virtualisation, anti-analysis",
+      "detect": "drm.detected or shield.detected",
+      "tools": ["node src/cli.mjs rea", "diec", "r2 -A", "x64dbg"],
+      "steps": [
+        { "when": "always", "run": "node src/cli.mjs rea <file>", "expect": "products, per-section entropy, readable.code" },
+        { "when": "readable.code = false", "run": "find the OEP: break on the section becoming executable, then dump", "expect": "an image whose .text entropy drops below 7.2" },
+        { "when": "a shield is recognised", "run": "node src/cli.mjs decode <slug>", "expect": "decoy evidence marked, masked literals recovered" }
+      ],
+      "pitfalls": [
+        "do not report behaviour read from an encrypted section — the strings there are noise",
+        "a virtualiser hides control flow, not imports: the import table still tells you what it can do"
+      ]
+    },
+    {
+      "id": "crypto",
+      "title": "Cryptography and keys",
+      "detect": "capability crypto present",
+      "tools": ["node src/cli.mjs decode", "hashcat", "openssl"],
+      "steps": [
+        { "when": "a key or IV appears as a literal", "run": "node src/cli.mjs spec <slug>", "expect": "the literal as a requirement, so a rebuild must carry the same material" },
+        { "when": "the material is masked", "run": "node src/cli.mjs decode <slug>", "expect": "recovered by arithmetic, executed: false" },
+        { "when": "a hash is the gate", "run": "hashcat -m <mode> <hash> <wordlist>", "expect": "a candidate, or a measured failure" }
+      ],
+      "pitfalls": ["a hardcoded key is a contract requirement, not a vulnerability — say which one you mean"]
+    },
+    {
+      "id": "network",
+      "title": "Protocols and transport",
+      "detect": "capability network present",
+      "tools": ["mitmproxy", "wireshark", "openssl s_client"],
+      "steps": [
+        { "when": "endpoints are known", "run": "node src/cli.mjs spec <slug>", "expect": "each endpoint as ob-endpoints, verbatim" },
+        { "when": "the traffic is TLS", "run": "mitmproxy with a pinned check first", "expect": "either plaintext or a documented pinning failure — both are answers" }
+      ],
+      "pitfalls": ["a template URL (with ${} or %s) is evidence of shape, not a literal to require"]
+    },
+    {
+      "id": "firmware",
+      "title": "Firmware and embedded",
+      "detect": "kind = raw-binary or an unknown container",
+      "tools": ["binwalk -e", "file", "hexdump", "ghidra with the right processor"],
+      "steps": [
+        { "when": "always", "run": "binwalk <file>", "expect": "signatures; each hit becomes its own target" },
+        { "when": "a filesystem drops out", "run": "rea each extracted file separately", "expect": "one contract per component, not one for the blob" }
+      ],
+      "pitfalls": ["an entropy-8 blob with no signature is not automatically encrypted — compare it against a known-good image of the same device"]
+    }
+  ]
+}

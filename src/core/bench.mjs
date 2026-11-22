@@ -17,6 +17,7 @@ import { verify, attachSimilarity } from './verify.mjs';
 import { diceCoefficient } from './similarity.mjs';
 import { capture, compareGolden } from './golden.mjs';
 import { renderDashboard } from './dashboard.mjs';
+import { buildMap } from './map.mjs';
 import { buildGaps } from './gaps.mjs';
 import { decodeShares } from './decode.mjs';
 import { toSarif, SARIF_VERSION } from './sarif.mjs';
@@ -152,7 +153,12 @@ export function bench() {
     add('dashboard', 'a self-contained page with no object leak',
       dash.includes('<svg') && dash.includes('ob-endpoints') && !dash.includes('[object Object]'));
 
-    // 10. outputs a CI can consume
+    // 10. the honest coverage table
+    const mp = buildMap(p1);
+    add('map-coverage', 'the map marks depth per domain and admits the gaps',
+      mp.domains.length >= 10 && mp.counts.full > 0 && mp.note.includes('no reader'));
+
+    // 11. outputs a CI can consume
     const sarif = toSarif(spec, v1, { rebuildDir: rb, version: 'bench' });
     const sarifOk = sarif.version === SARIF_VERSION && sarif.runs[0].results.length > 0 && sarif.runs[0].tool.driver.rules.length > 0;
     add('sarif-shape', 'emits SARIF 2.1.0 with rules and results', sarifOk, sarif.runs[0].results.length + ' results');

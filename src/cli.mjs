@@ -19,6 +19,7 @@ import { bench } from './core/bench.mjs';
 import { toSarif } from './core/sarif.mjs';
 import { capture, writeGolden, readGolden, compareGolden, goldenObligations, flatten, GOLDEN_SCHEMA } from './core/golden.mjs';
 import { writeDashboard } from './core/dashboard.mjs';
+import { buildMap, renderMap, recipeFor } from './core/map.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -445,6 +446,34 @@ function cmdDashboard(args) {
   return 0;
 }
 
+function cmdMap(args) {
+  const slug = args._[1];
+  let profile = null;
+  if (slug) {
+    const { dir } = need(slug);
+    const file = path.join(dir, 'profile.json');
+    if (fs.existsSync(file)) profile = readJson(file);
+  }
+  const map = buildMap(profile);
+  const wantRecipe = typeof args.recipe === 'string' ? args.recipe : null;
+  if (wantRecipe) {
+    const r = recipeFor(wantRecipe);
+    if (!r) fail('no recipe for "' + wantRecipe + '"; run `reacraft map` to list the domains');
+    const lines = [r.title + '  (' + r.id + ')', '', 'tools: ' + r.tools.join(', '), ''];
+    for (const s of r.steps) {
+      lines.push('when ' + s.when);
+      lines.push('  run   ' + s.run);
+      lines.push('  sees  ' + s.expect);
+    }
+    lines.push('');
+    for (const p of r.pitfalls) lines.push('- ' + p);
+    emit(args, { domain: r.id, recipe: r }, lines.join('\n'));
+    return 0;
+  }
+  emit(args, { map }, renderMap(map));
+  return 0;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -542,7 +571,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
-  dashboard: cmdDashboard,
+  dashboard: cmdDashboard, map: cmdMap,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

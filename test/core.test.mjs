@@ -18,6 +18,7 @@ import { record, prove, fileEntry } from '../src/core/ledger.mjs';
 import { detectKind, parsePE } from '../src/core/target.mjs';
 import { decodeFile } from '../src/core/decode.mjs';
 import { capture, compareGolden, flatten, goldenObligations } from '../src/core/golden.mjs';
+import { buildMap, recipeFor } from '../src/core/map.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -489,6 +490,26 @@ test('four other constructions are recovered, not only split-share', () => {
     assert.ok(got.includes(p), 'missing ' + p + ' in ' + JSON.stringify(got));
   }
   assert.ok(r.strategies.length >= 2, 'several strategies should have fired: ' + r.strategies.join(','));
+});
+
+test('the coverage map says how deep each domain goes, not just that it exists', () => {
+  const map = buildMap();
+  assert.ok(map.domains.length >= 10, 'expected the whole set of domains');
+  assert.equal(map.counts.full + map.counts.partial + map.counts.none, map.domains.length);
+  assert.ok(map.domains.every((d) => ['full', 'partial', 'none'].includes(d.depth)));
+  assert.ok(map.domains.every((d) => d.recipes > 0), 'every domain should carry at least one recipe');
+  assert.ok(map.note.includes('no reader'), 'a domain without a reader must be called out');
+
+  // A PE target lands in the PE domain, and the marking is per-target.
+  const dir = tmpdir();
+  const f = path.join(dir, 'x.exe');
+  fs.writeFileSync(f, makePE([{ name: '.text', data: Buffer.from('MZ' + 'A'.repeat(2000)) }]));
+  const p = buildProfile(f);
+  const marked = buildMap(p);
+  assert.ok(marked.domains.find((d) => d.id === 'pe-native').hit);
+
+  const r = recipeFor('protection');
+  assert.ok(r && r.steps.length >= 2 && r.steps.every((s) => s.run && s.expect));
 });
 
 test('the bench proves the whole claim end to end', () => {

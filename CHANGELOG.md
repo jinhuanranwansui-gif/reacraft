@@ -10,6 +10,31 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.14.0] — 2026-11-22
+
+The first answer to "can this cover every reverse-engineering domain", and it starts with the word no.
+
+### Added / 新增
+
+- **`knowledge/recipes.json`** — twelve domains, each with the tools to reach for, the steps in order,
+  what each step should show, and the traps. This is the part that is data rather than code: adding
+  a technique is editing this file.
+  十二个域的技术配方：用什么工具、按什么顺序、每一步该看到什么、坑在哪。技术靠加数据，不靠改代码。
+- **`reacraft map`** — the coverage table with a `depth` column: `full` / `partial` / `none` per
+  domain, the analyzer behind it, and a per-domain recipe count. With a slug it also marks which
+  domains that target landed in.
+  覆盖表带 `depth` 列——列出格式却不说读多深，是用省略说谎。
+- **`reacraft map --recipe <domain>`** — the steps for one domain, as `when → run → sees`.
+- `bench` check `map-coverage`, and a test that pins the invariant: every domain carries a recipe,
+  every depth is one of three values, and a domain without a reader must be called out in the note.
+
+### The claim, stated so it can be argued with
+
+"Support every RE domain" is impossible. "Apply the same method to each domain" is not — reading
+facts, making a contract, scoring it, and feeding the gap back works the same for a PE and an APK.
+What changes is the fact extractor and the recipe, so a new domain is two files rather than a
+rewrite. The map makes the current depth checkable instead of implied.
+
 ## [0.13.0] — 2026-11-22
 
 A dashboard that is one file, because that is the form that keeps working.

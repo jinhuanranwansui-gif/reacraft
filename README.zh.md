@@ -332,6 +332,36 @@ golden   83%   leaves=6 matched=5 changed=1 missing=0   exit 0
 它不是 GameFrame 那套 Unicorn 台架——比的是打印出来的输出，不是模拟出来的内存。但它把
 「字符串看着像」换成「重建打印了 4，原版打印的是 3」，那是另一种强度的主张。
 
+## 覆盖什么，覆盖多深
+
+```bash
+node src/cli.mjs map                      # 域表格
+node src/cli.mjs map --recipe protection  # 某个域的具体步骤
+```
+
+```text
+domain            depth    recipes  analyzer
+pe-native         full     5        parsePE, profile, drm, decode
+pe-managed        partial  3        识别到 CLR 头；IL 未反编译——配 ilspycmd
+android           partial  3        从 DEX 名字取类；manifest 未解析——配 apktool
+firmware          none     2        无容器解析器：先 binwalk，再逐个 rea
+full 5   partial 6   none 1
+```
+
+**`depth` 那一列才是重点。** 列出二十种格式却不说到读多深的工具，是在用省略说谎。
+
+- **full** —— 这个仓库能读出结构，并且有对应规则；
+- **partial** —— 能打开容器，但真正的工作要靠外部工具，配方里点名是哪个；
+- **none** —— 有配方，但没有读取器。
+
+「支持所有逆向域」做不到；**「把同一套方法用到每个域」做得到**。方法——读事实、写合同、打分、差额反哺——
+在 PE 和 APK 之间没有任何变化，变的是事实提取器和配方。所以新增一个域是两个文件，不是重写：
+
+1. 一个产出事实的 analyzer（`src/core/target.mjs` 对 PE/ELF/Mach-O/asar 做的就是这件事）；
+2. `knowledge/recipes.json` 里的一条，说明跑什么、看什么。
+
+然后在 `src/core/map.mjs` 里设它的 `DEPTH`——表格就会如实说，包括答案是 `none` 的时候。
+
 ## 它不是什么：验证台架
 
 [GameFrame](https://tanepiper.github.io/game-frame/) 做的是更难的那件事：用 Unicorn 跑原版自己的函数，

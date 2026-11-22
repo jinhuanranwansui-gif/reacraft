@@ -392,6 +392,42 @@ It is not game-frame's Unicorn harness — it compares printed output, not emula
 replaces "the strings look right" with "the rebuild printed 4 where the original printed 3", and
 that is a different kind of claim.
 
+## What it covers, and how deep
+
+```bash
+node src/cli.mjs map                     # the domain table
+node src/cli.mjs map --recipe protection # the steps for one domain
+```
+
+```text
+domain            depth    recipes  analyzer
+pe-native         full     5        parsePE, profile, drm, decode
+pe-managed        partial  3        CLR header detected; IL not decompiled — pair with ilspycmd
+android           partial  3        classes from DEX names; manifest not parsed — pair with apktool
+firmware          none     2        no container parser: binwalk first, then rea each part
+...
+full 5   partial 6   none 1
+```
+
+The `depth` column is the point. A tool that lists twenty formats without saying how far it reads is
+lying by omission.
+
+- **full** — this repository reads the structure and has rules for it;
+- **partial** — it opens the container, but the real work needs an external tool, and the recipe names
+  that tool;
+- **none** — there is a recipe and no reader at all.
+
+**"Support every reverse-engineering domain" is impossible. "Apply the same method to each domain" is
+not.** The method — read facts, make a contract, score, feed the gap back — does not change between a
+PE and an APK. What changes is the fact extractor and the recipe. So a new domain is two files, not a
+rewrite:
+
+1. an analyzer that produces facts (what `src/core/target.mjs` does for PE/ELF/Mach-O/asar);
+2. an entry in `knowledge/recipes.json` saying what to run and what to look for.
+
+Then set its `DEPTH` in `src/core/map.mjs` — and the map will say the truth about it, including when
+the answer is `none`.
+
 ## What this is not: a verification harness
 
 [GameFrame](https://tanepiper.github.io/game-frame/) does the harder thing. It runs the original's
