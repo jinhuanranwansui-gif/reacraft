@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: unit tests
-        run: node --test test/
+        run: node --test
       - name: built-in end-to-end selftest
         run: node src/cli.mjs selftest
       - name: probe reports engines without them
@@ -35,7 +35,7 @@ jobs:
           node-version: 22
       - name: syntax check every module
         run: |
-          for f in $(find src dsh -name '*.mjs' -o -name '*.js'); do node --check "$f"; done
+          find src dsh -type f \( -name '*.mjs' -o -name '*.js' \) -print0 | while IFS= read -r -d '' f; do node --check "$f"; done
       - name: the plugin entry must load without DSH present
         run: node -e "import('./dsh/host/index.js').then(m=>{if(m.name!=='reacraft')process.exit(1);console.log('host exports ok')})"
       - name: no dependency was added

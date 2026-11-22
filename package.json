@@ -21,7 +21,7 @@
   "scripts": {
     "probe": "node src/cli.mjs probe",
     "selftest": "node src/cli.mjs selftest",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "keywords": [
     "reverse-engineering",
