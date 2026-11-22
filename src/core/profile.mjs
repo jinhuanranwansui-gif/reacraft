@@ -7,6 +7,7 @@ import { readTarget, extractEndpoints } from './target.mjs';
 import { STRING_RULES, API_RULES, API_SETS, JAVA_RULES, apiHit } from './rules.mjs';
 import { assessShield, filterEndpoints } from './shield.mjs';
 import { decodeShares } from './decode.mjs';
+import { detectDrm } from './drm.mjs';
 
 export const PROFILE_SCHEMA = 'reacraft.profile/2';
 
@@ -201,6 +202,25 @@ export function buildProfile(file, { name = null } = {}) {
   };
   profile.stack = guessStack(profile);
   profile.unknowns = limits(profile);
+
+  // Commercial wrapper (Steam DRM, UPX, VMProtect…): the headers survive, the code may not.
+  if (profile.pe) {
+    const drm = detectDrm(profile);
+    // Always present on a PE, so a caller can ask "was a wrapper found?" without a null check.
+    profile.drm = drm;
+    if (drm.detected) {
+      profile.drm = drm;
+      profile.unknowns.unshift({
+        id: 'u-drm',
+        question: 'this image carries a commercial wrapper (' + drm.products.map((p) => p.id).join(', ') + ')'
+          + (drm.codeEncrypted ? ' and its code section is encrypted' : ''),
+        how_to_settle: drm.codeEncrypted
+          ? 'a static read cannot see the protected code: dump the image after the stub decrypts it, then read that'
+          : 'the code section is readable in this build; treat the wrapper section as packaging, not behaviour',
+        severity: drm.codeEncrypted ? 'high' : 'medium',
+      });
+    }
+  }
 
   // Does this target fight back? A shield adds bytes, decoys and masked literals; it does not
   // change the container, so structure stays trustworthy while individual values may not.

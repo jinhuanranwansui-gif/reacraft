@@ -216,6 +216,32 @@ node src/cli.mjs decode samples/hardened-vault.cjs
 crackme v6 的两个文件（`vault.cjs` 与 `panel.html`）都验证过；普通构建上不会误触发——下面 bench 的
 `decode` 两项守着这条。
 
+## 商业保护层：Steam DRM、UPX、VMProtect
+
+在真实的 Steam 库里量的，不是样本。《以撒的结合：重生》带着 SteamStub：
+
+```text
+kind     pe-native  arch x86  size 9,537,032
+sections .text(7,571,968) .rdata .data .rsrc .reloc .bind(189,960)
+entropy  .text 6.56          .bind 7.98
+entry    0x00924310  →  在 .bind 里，不在 .text
+drm      steam-stub   codeEncrypted=false
+```
+
+三个事实，三个结论：
+
+- `.bind` 段熵 7.98，入口点不在 `.text` —— 说明有壳在程序之前接管。`drm.products` 报 `steam-stub`。
+- `.text` 熵 6.56 是编译后的代码，不是密文。**这个构建把程序明文发布了**：壳只守启动、存加密的
+  stub，代码本身就在那儿。
+- 所以义务来自真实程序——`steam_api.dll` 导入、上传端点、Lua 5.3 运行时——而 `ob-drm-scope`
+  一句话说清重建欠什么：**启动之后的行为，不是壳**。
+
+如果 `.text` **真被加密**，`codeEncrypted` 为 true、`readable.code` 为 false、`unknowns` 会写代码
+必须从运行时 dump 拿。**分数不会假装自己读过根本不存在的字节**——这是"测量一个 DRM"和"糊弄过去"的区别。
+
+检测是结构化的：`.bind`/`.steam`、`UPX0`/`UPX1`、`.vmp*`、`.themida`、`.enigma*`，加上熵阈值和入口点
+位置。不单凭产品字符串下结论，普通二进制也不会被扣帽子（这条也有测试守着）。
+
 ## 接进 CI
 
 重建漏掉一条义务，是那棵树的缺陷，所以它也该是一条 SARIF 结果：

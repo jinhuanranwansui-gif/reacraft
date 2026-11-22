@@ -3,6 +3,43 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-11-22
+
+Reads binaries that ship behind a commercial wrapper, and says exactly how much of them it can see.
+
+### Added / 新增
+
+- **`src/core/drm.mjs` — wrapper detection.** Steam DRM (SteamStub), UPX, VMProtect, Themida and
+  Enigma are recognised by structure: the section names, the **per-section entropy** and the
+  **entry point's location**. No product string is trusted on its own.
+  结构化识别商业壳，不单凭产品字符串。
+- **`parsePE` now measures entropy per section**, so a packed or encrypted body is distinguishable
+  from compiled code (about 6.5) and from padding (under 4).
+- **`drm.codeEncrypted` / `drm.readable.code`** — the honest split between "the wrapper is
+  present" and "the code is readable". When the code section is encrypted the profile says so and
+  `unknowns` names the way out (dump after the stub decrypts, then read that).
+- **`ob-drm-scope`** — one obligation that keeps a wrapper out of the contract: a rebuild owes
+  post-launch behaviour, not the packaging.
+
+### Verified / 实测
+
+A real Steam library, not a sample:
+
+| target | what it is | result |
+|---|---|---|
+| `isaac-ng.exe` (The Binding of Isaac: Rebirth) | SteamStub | `.bind` H=7.98, entry `0x00924310` inside `.bind`, **`.text` H=6.56 → not encrypted**; 13 capabilities, 8 obligations including `ob-drm-scope` |
+| `wallpaper64.exe` (Wallpaper Engine) | no wrapper | `drm.detected=false`; the Steam link is not assumed |
+
+The conclusion that matters: **this build ships its program readable**. The wrapper gates launch and
+holds the encrypted stub; the code is not ciphertext. A build that does encrypt `.text` gets
+`readable.code=false` and no invented obligations — the score never pretends to have read bytes that
+were not there.
+
+### Fixed / 修复
+
+- `drm` is always present on a PE (`detected: false` when clean), so a caller never has to guard
+  against a missing field.
+
 ## [0.4.0] — 2026-11-22
 
 The release that makes it a project rather than a script: a version, an action, a security policy,

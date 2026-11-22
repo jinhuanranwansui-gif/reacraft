@@ -233,6 +233,27 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
     });
   }
 
+  // ---- a commercial wrapper is packaging, not behaviour, and must not become requirements
+  if (profile.drm?.detected) {
+    const products = profile.drm.products.map((p) => p.id);
+    addCap('drm-protected', {
+      weight: 3,
+      statement: 'is wrapped by ' + products.join(', ')
+        + (profile.drm.codeEncrypted ? ' with an encrypted code section' : ' (code section readable)'),
+      evidence: [...(profile.drm.evidence || [])].slice(0, 4),
+      samples: [],
+    });
+    addObligation({
+      id: 'ob-drm-scope',
+      item: 'the rebuild reproduces post-launch behaviour, not the wrapper',
+      acceptance: 'manual',
+      weight: 3,
+      why: profile.drm.codeEncrypted
+        ? 'the code section is stored encrypted: what this read saw is the protected image, not the program, so behaviour has to come from a decrypted image or from observation'
+        : 'the wrapper section is packaging; the readable code is the program, and the wrapper itself is not something a rebuild owes',
+    });
+  }
+
   // ---- a manual gate that a reviewer must sign, never auto-passed
   addObligation({
     id: 'ob-behaviour',

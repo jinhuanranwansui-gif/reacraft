@@ -19,6 +19,22 @@ function hex(n, width) {
   return '0x' + Number(n).toString(16).padStart(width, '0');
 }
 
+// Shannon entropy over a sample of the section: 8.0 is random, ~6.5 is compiled code, under 4
+// is text or padding. A packed or encrypted section sits near 7.9+.
+export function sectionEntropy(buf, { sample = 1 << 20 } = {}) {
+  const n = Math.min(buf.length, sample);
+  if (!n) return 0;
+  const freq = new Uint32Array(256);
+  for (let i = 0; i < n; i++) freq[buf[i]]++;
+  let h = 0;
+  for (let i = 0; i < 256; i++) {
+    if (!freq[i]) continue;
+    const p = freq[i] / n;
+    h -= p * Math.log2(p);
+  }
+  return Number(h.toFixed(3));
+}
+
 function cstr(buf, off, max) {
   if (off < 0 || off >= buf.length) return '';
   let end = off;
@@ -64,13 +80,21 @@ export function parsePE(buf) {
     for (let i = 0; i < numSections; i++) {
       const o = secOff + i * 40;
       if (o + 40 > buf.length) break;
+      const rawSize = buf.readUInt32LE(o + 16);
+      const rawPtr = buf.readUInt32LE(o + 20);
+      const characteristics = buf.readUInt32LE(o + 36);
+      const body = buf.subarray(rawPtr, Math.min(rawPtr + rawSize, buf.length));
       sections.push({
         name: buf.toString('latin1', o, o + 8).replace(/\0+$/, ''),
         virtualSize: buf.readUInt32LE(o + 8),
         virtualAddress: buf.readUInt32LE(o + 12),
-        rawSize: buf.readUInt32LE(o + 16),
-        rawPtr: buf.readUInt32LE(o + 20),
-        characteristics: buf.readUInt32LE(o + 36),
+        rawSize,
+        rawPtr,
+        characteristics,
+        // Enough to tell compiled code from a packed or encrypted body.
+        entropy: sectionEntropy(body),
+        executable: Boolean(characteristics & 0x20000000),
+        writable: Boolean(characteristics & 0x80000000),
       });
     }
 

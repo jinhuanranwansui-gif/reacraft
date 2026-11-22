@@ -255,6 +255,36 @@ The reconstruction is `a[i] ^ b[i] ^ ((i * coef) & 0xffff)`, with `coef` taken f
 decoder. Verified on both files of crackme v6 (`vault.cjs` and `panel.html`), and it fires on
 nothing in an ordinary build — see `decode` in the bench below.
 
+## Commercial wrappers: Steam DRM, UPX, VMProtect
+
+Measured on a real Steam library, not a sample. *The Binding of Isaac: Rebirth* ships with SteamStub:
+
+```text
+kind     pe-native  arch x86  size 9,537,032
+sections .text(7,571,968) .rdata .data .rsrc .reloc .bind(189,960)
+entropy  .text 6.56          .bind 7.98
+entry    0x00924310  →  inside .bind, not .text
+drm      steam-stub   codeEncrypted=false
+```
+
+Three facts, three conclusions:
+
+- `.bind` at 7.98 entropy, plus an entry point outside `.text`, means a wrapper took over before the
+  program runs. `drm.products` says `steam-stub`.
+- `.text` at 6.56 is compiled code, not ciphertext. **This build ships its program readable** — the
+  wrapper gates launch and holds the encrypted stub, but the code is right there.
+- So the obligations come from the real program — its `steam_api.dll` import, its upload endpoint,
+  its Lua 5.3 runtime — and `ob-drm-scope` states what a rebuild owes: post-launch behaviour, not
+  the wrapper.
+
+For a build whose `.text` **is** encrypted, `codeEncrypted` is true, `readable.code` is false, and
+`unknowns` says the code must come from a runtime dump. The score never claims to have read bytes
+that were never there — which is the difference between measuring a DRM and bluffing past one.
+
+Detectors are structural: `.bind`/`.steam`, `UPX0`/`UPX1`, `.vmp*`, `.themida`, `.enigma*`, the
+entropy threshold, and the entry-point location. No product string is trusted on its own, and a
+plain binary is not accused of carrying a wrapper (there is a test for that too).
+
 ## Into CI
 
 A rebuild that misses an obligation is a defect in that tree, so it can also be a SARIF result:

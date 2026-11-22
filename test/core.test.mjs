@@ -2,6 +2,7 @@
 // runs on any machine and never touches a sample.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -229,6 +230,88 @@ test('a v1 spec is adapted rather than refused', () => {
   const v = verify(spec, dir);
   assert.equal(v.results[0].status, 'pass');
   assert.equal(v.results[1].status, 'pending');
+});
+
+// A minimal but valid PE32 with the given sections. Enough for the header parser, the entropy
+// measurement and the wrapper detector; not a runnable image.
+function makePE(sections) {
+  const align = 0x200;
+  const n = sections.length;
+  const optSize = 0xe0;
+  const peOff = 0x40;
+  const secTableOff = peOff + 4 + 20 + optSize;
+  const dataStart = Math.ceil((secTableOff + n * 40) / align) * align;
+  let size = dataStart;
+  for (const s of sections) size += Math.ceil(s.data.length / align) * align;
+  const buf = Buffer.alloc(size);
+  buf.writeUInt16LE(0x5a4d, 0);
+  buf.writeUInt32LE(peOff, 0x3c);
+  buf.writeUInt32BE(0x50450000, peOff);
+  const coff = peOff + 4;
+  buf.writeUInt16LE(0x14c, coff);
+  buf.writeUInt16LE(n, coff + 2);
+  buf.writeUInt16LE(optSize, coff + 16);
+  const opt = coff + 20;
+  buf.writeUInt16LE(0x10b, opt);
+  buf.writeUInt32LE(0x1800, opt + 16); // entry inside the second section
+  buf.writeUInt32LE(0x400000, opt + 28);
+  buf.writeUInt32LE(16, opt + 92);
+  let vaddr = 0x1000;
+  let raw = dataStart;
+  sections.forEach((s, i) => {
+    const o = secTableOff + i * 40;
+    buf.write(s.name.padEnd(8, '\0'), o, 8, 'latin1');
+    buf.writeUInt32LE(s.data.length, o + 8);
+    buf.writeUInt32LE(vaddr, o + 12);
+    buf.writeUInt32LE(s.data.length, o + 16);
+    buf.writeUInt32LE(raw, o + 20);
+    buf.writeUInt32LE(0x60000020, o + 36);
+    s.data.copy(buf, raw);
+    vaddr += Math.ceil(s.data.length / 0x1000) * 0x1000;
+    raw += Math.ceil(s.data.length / align) * align;
+  });
+  return buf;
+}
+
+test('a wrapper is recognised, and an encrypted code section is admitted rather than read', () => {
+  const dir = tmpdir();
+  const bait = Buffer.concat([
+    crypto.randomBytes(8192),
+    Buffer.from('\nSteamAPI_Init\0SteamAPI_RestartAppIfNecessary\0', 'latin1'),
+  ]);
+  // .text random high entropy, .bind random high entropy with the Steam strings inside.
+  const encrypted = path.join(dir, 'wrapped.exe');
+  fs.writeFileSync(encrypted, makePE([
+    { name: '.text', data: crypto.randomBytes(16384) },
+    { name: '.bind', data: bait },
+  ]));
+  const p = buildProfile(encrypted);
+  assert.ok(p.drm, 'drm assessment should exist on a PE');
+  assert.equal(p.drm.detected, true);
+  assert.ok(p.drm.products.some((x) => x.id === 'steam-stub'));
+  assert.equal(p.drm.codeEncrypted, true, 'random .text should read as encrypted');
+  assert.equal(p.drm.readable.code, false);
+  assert.ok(p.unknowns.some((u) => u.id === 'u-drm'))
+
+  // The same shape with an ordinary code section: wrapper present, code readable.
+  const clear = path.join(dir, 'unencrypted.exe');
+  fs.writeFileSync(clear, makePE([
+    { name: '.text', data: Buffer.alloc(16384, 0x90) },
+    { name: '.bind', data: bait },
+  ]));
+  const p2 = buildProfile(clear);
+  assert.equal(p2.drm.detected, true);
+  assert.equal(p2.drm.codeEncrypted, false);
+  assert.equal(p2.drm.readable.code, true);
+});
+
+test('an ordinary binary is not accused of carrying a wrapper', () => {
+  const dir = tmpdir();
+  const f = path.join(dir, 'plain.exe');
+  fs.writeFileSync(f, makePE([{ name: '.text', data: Buffer.alloc(8192, 0x90) }]));
+  const p = buildProfile(f);
+  assert.equal(p.drm.detected, false);
+  assert.deepEqual(p.drm.products, []);
 });
 
 test('the bench proves the whole claim end to end', () => {
