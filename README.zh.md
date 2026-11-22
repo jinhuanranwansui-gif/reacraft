@@ -354,6 +354,34 @@ largest functions:
 `--fn` 打的是 radare2 自己的伪 C：难看，但那是真的控制流，不是猜的。`--calls` 是回答
 「这个程序在哪碰网络/注册表/磁盘」最便宜的办法——一个导入，全部调用点。
 
+## 看它跑起来
+
+```bash
+node src/cli.mjs hook sample.exe --apis CreateFileW,RegOpenKeyExW --seconds 10
+node src/cli.mjs hook sample.exe --args "--config test.json" --seconds 15
+```
+
+```text
+hooked   CreateFileW, LoadLibraryW
+calls    63 in 4s
+  CreateFileW    \\?\C:\Windows\win.ini
+```
+
+静态读取说的是"它能做什么"，只有跑一次才知道它**做了什么**。这条命令启动目标、挂上 frida、
+hook 你点名的导入，把每次调用和第一个参数记下来。
+
+这里有三个坑，都是**跑到失败才学会**的，全部写进了代码：
+
+1. **要 attach，不要 spawn。** `frida -f` 恢复目标之后就再也不跑 agent 的定时器了——脚本的同步部分
+   执行了，心跳一次都没有。换成 `-p <pid>` + `--eternalize`：CLI 退出后 agent 继续活着，而这本来
+   就是想要的。
+2. **从目标内部写文件。** 结果走 frida 的 `File` 写 JSONL，不走 `send()`。解析 frida 的控制台输出
+   等于解析带单引号和转义的 Python repr；文件没这问题，而且能在被杀之后留下内容。
+3. **20 毫秒就退出的程序挂不上。** 这种情况会明说原因，而不是回一个 `0 calls`——空列表读起来像
+   "它什么都没做"，那是另一个结论。
+
+没装 frida 的话命令会直说，其它一切不变。
+
 ## 覆盖什么，覆盖多深
 
 ```bash

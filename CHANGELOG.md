@@ -10,6 +10,46 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.17.0] — 2026-11-22
+
+The fourth rung: not what it can do, but what it does.
+
+### Added / 新增
+
+- **`hook` command and `src/core/dynamic.mjs`** — starts the target, attaches frida, hooks the named
+  imports and records every call with its first argument. The ladder is now complete up to "run":
+  identify → read facts → read logic → **run** → construct.
+  第四条梯子：看得见它实际做了什么。
+- `reacraft map` gains a `dynamic` domain (full), so the table reflects the new rung.
+- A recipe entry for runtime observation, including the trap that matters: a run under frida is a run
+  under frida, and anti-debug checks may change the behaviour you came to observe.
+
+### Three failures that shaped the implementation
+
+1. **`frida -f` spawn mode does not keep the agent alive.** The script's synchronous prologue ran —
+   `loaded`, `probe`, `hooked` all landed — but its `setInterval` heartbeat never fired. Switching to
+   `-p <pid>` with `--eternalize` fixed it: the CLI returns, the agent keeps running, findings keep
+   landing in a file.
+2. **`send()` output is Python repr, not JSON.** Findings are written to JSONL from inside the target
+   through frida's `File` API instead. No parsing, and they survive the kill.
+3. **A target that exits in 20 ms cannot be attached to.** That now returns
+   `target exited before frida could attach` rather than `0 calls` — an empty list is a different
+   claim from a stated reason, and the wrong one.
+
+Also: frida 17 removed `Module.findExportByName`, so the injected script tries the new API first and
+falls back to the old one, then to the module handle.
+
+### Verified / 实测
+
+```text
+target   D:\node.exe (reading a file in a loop)
+hooked   CreateFileW, LoadLibraryW
+calls    63 in 4s
+  CreateFileW    \\?\C:\Windows\win.ini
+```
+
+33 tests (2 skipped by design), 23 bench checks.
+
 ## [0.16.0] — 2026-11-22
 
 The third rung: reading the code, not only the container.

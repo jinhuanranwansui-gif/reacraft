@@ -145,6 +145,22 @@
       "pitfalls": ["a template URL (with ${} or %s) is evidence of shape, not a literal to require"]
     },
     {
+      "id": "dynamic",
+      "title": "Runtime observation",
+      "detect": "not a format: a capability, whenever frida is installed",
+      "tools": ["node src/cli.mjs hook", "frida -p", "frida-trace"],
+      "steps": [
+        { "when": "static reading is done and the question is 'what does it actually do'", "run": "node src/cli.mjs hook <exe> --apis CreateFileW,RegOpenKeyExW --seconds 10", "expect": "every call with its first argument, captured from inside the target" },
+        { "when": "the program needs arguments to reach the interesting path", "run": "node src/cli.mjs hook <exe> --args \"--config test.json\"", "expect": "calls from that path, not from the splash screen" },
+        { "when": "a hook captures nothing", "run": "check whether the program exited before attach, then widen --seconds or pick an import it must use", "expect": "a stated reason, not an empty list" }
+      ],
+      "pitfalls": [
+        "a GUI program lives; a CLI that finishes in 20ms cannot be attached to, and the tool says so",
+        "hook the import the program calls, not the one the documentation mentions: kernel32 forwards to kernelbase",
+        "a run under frida is a run under frida: anti-debug checks may change the behaviour you came to observe"
+      ]
+    },
+    {
       "id": "firmware",
       "title": "Firmware and embedded",
       "detect": "kind = raw-binary or an unknown container",

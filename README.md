@@ -415,6 +415,36 @@ engine is not a reader you can count on, so the static floor never depends on th
 the cheap way to answer "where does this program touch the network / the registry / the disk" — one
 import, all its call sites.
 
+## Watching it run
+
+```bash
+node src/cli.mjs hook sample.exe --apis CreateFileW,RegOpenKeyExW --seconds 10
+node src/cli.mjs hook sample.exe --args "--config test.json" --seconds 15
+```
+
+```text
+hooked   CreateFileW, LoadLibraryW
+calls    63 in 4s
+  CreateFileW    \\?\C:\Windows\win.ini
+  CreateFileW    \\?\C:\Windows\win.ini
+```
+
+Static reading says what a program **can** do. Only a run says what it **does**. This starts the
+target, attaches frida, hooks the imports you name, and records every call with its first argument.
+
+Three things about this were learned by them not working, and all three are in the code:
+
+1. **Attach, do not spawn.** `frida -f` resumed the target and then never ran the agent's timers — the
+   script's synchronous prologue executed, its heartbeat did not. `-p <pid>` plus `--eternalize`
+   keeps the agent alive after the CLI exits, which is what you want anyway.
+2. **Write from inside the target.** Findings go to a JSONL file through frida's `File`, not `send()`.
+   Parsing frida's console output means parsing Python repr with single quotes and escapes; a file
+   has no such problem and survives the kill.
+3. **A program that exits in 20ms cannot be attached to.** That gets a stated reason, not
+   `0 calls` — an empty list reads like "it did nothing", which is a different claim.
+
+Without frida the command says so and nothing else changes.
+
 ## What it covers, and how deep
 
 ```bash

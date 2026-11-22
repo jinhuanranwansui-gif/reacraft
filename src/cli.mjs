@@ -21,6 +21,7 @@ import { capture, writeGolden, readGolden, compareGolden, goldenObligations, fla
 import { writeDashboard } from './core/dashboard.mjs';
 import { buildMap, renderMap, recipeFor } from './core/map.mjs';
 import { r2Available, analyzeFunctions, decompileFunction, callersOf } from './core/disasm.mjs';
+import { fridaAvailable, runHook } from './core/dynamic.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -515,6 +516,39 @@ function cmdDisasm(args) {
   return a.count ? 0 : 2;
 }
 
+function cmdHook(args) {
+  const target = args._[1];
+  if (!target) fail('hook needs a program: reacraft hook <exe> [--apis CreateFileW,RegOpenKeyExW] [--seconds 8]');
+  const file = path.resolve(target);
+  if (!fs.existsSync(file)) fail('no such file: ' + file);
+  if (!fridaAvailable()) fail('frida is not installed; `reacraft probe` shows what is available');
+
+  const apis = typeof args.apis === 'string'
+    ? args.apis.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['CreateFileW', 'RegOpenKeyExW'];
+  const argv = typeof args.args === 'string' ? args.args.split(' ').filter(Boolean) : [];
+  const seconds = Math.max(2, Math.min(120, Number(args.seconds) || 8));
+
+  const r = runHook(file, { apis, seconds, args: argv });
+  const lines = [
+    'target   ' + file,
+    'frida    ' + (r.fridaRuntime || 'unknown'),
+    'hooked   ' + (r.hooked.join(', ') || '(none)'),
+  ];
+  if (r.missing.length) lines.push('missing  ' + r.missing.join(', '));
+  lines.push('calls    ' + (r.count ?? 0) + ' in ' + seconds + 's');
+  if (r.error) lines.push('error    ' + r.error);
+  if (r.stderr) lines.push('stderr   ' + r.stderr.split('\n')[0]);
+  if (r.events.length) {
+    lines.push('');
+    for (const e of r.events.slice(0, 20)) lines.push('  ' + String(e.api).padEnd(16) + '  ' + e.arg0);
+  }
+  lines.push('');
+  lines.push(r.note);
+  emit(args, { target: file, dynamic: r }, lines.join('\n'));
+  return r.count || r.error ? 0 : 2;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -612,7 +646,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
-  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm,
+  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm, hook: cmdHook,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

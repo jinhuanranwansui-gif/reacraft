@@ -21,6 +21,7 @@ import { capture, compareGolden, flatten, goldenObligations } from '../src/core/
 import { buildMap, recipeFor } from '../src/core/map.mjs';
 import { detect, listAnalyzers } from '../analyzers/index.mjs';
 import { r2Available, analyzeFunctions, decompileFunction } from '../src/core/disasm.mjs';
+import { fridaAvailable, runHook } from '../src/core/dynamic.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -556,6 +557,23 @@ test('the disassembler reads real code (opt-in: REACRAFT_DISASM_TEST=1)', {
   assert.equal(a.available, true);
   assert.ok(a.count > 100, 'expected a real function count, got ' + a.count);
   assert.ok(a.top.length > 0 && a.top.every((f) => typeof f.size === 'number'));
+});
+
+test('the dynamic hook says why it captured nothing instead of returning an empty list', {
+  skip: fridaAvailable() ? false : 'frida not installed',
+  timeout: 60000,
+}, () => {
+  // A program that finishes in milliseconds cannot be attached to; that is a fact about the target,
+  // not a failure of the hook, and it must be reported as such.
+  const r = runHook(process.execPath, {
+    apis: ['CreateFileW'],
+    seconds: 1,
+    startupMs: 1500,
+    args: ['-e', 'console.log(1)'],
+  });
+  assert.equal(r.available, true);
+  assert.ok(r.error && /exited before/.test(r.error), 'expected an early-exit reason, got ' + JSON.stringify(r.error));
+  assert.equal(r.count ?? 0, 0);
 });
 
 test('the bench proves the whole claim end to end', () => {

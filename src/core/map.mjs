@@ -28,6 +28,7 @@ const DEPTH = {
   protection: { depth: 'full', by: 'src/core/shield.mjs, drm.mjs (per-section entropy, products)' },
   crypto: { depth: 'partial', by: 'literals and API names; algorithms are not identified' },
   network: { depth: 'partial', by: 'endpoints and hosts; protocol shape is not inferred' },
+  dynamic: { depth: 'full', by: 'src/core/dynamic.mjs (frida attach + import hooks, findings written from inside the target)' },
   firmware: { depth: 'none', by: 'no container parser: binwalk first, then rea each part' },
 };
 

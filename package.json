@@ -1,6 +1,6 @@
 {
   "name": "reacraft",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Read a target, write a verifiable spec, rebuild it, score the rebuild, close the gap. One rail, zero dependencies. Ships as a CLI and as a DeepSeek Harness plugin.",
   "type": "module",
   "repository": {
