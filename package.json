@@ -1,6 +1,6 @@
 {
   "name": "reacraft",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Read a target, write a verifiable spec, rebuild it, score the rebuild, close the gap. One rail, zero dependencies. Ships as a CLI and as a DeepSeek Harness plugin.",
   "type": "module",
   "repository": {
@@ -31,7 +31,8 @@
   "scripts": {
     "probe": "node src/cli.mjs probe",
     "selftest": "node src/cli.mjs selftest",
-    "test": "node --test"
+    "test": "node --test",
+    "fuzz": "node tools/fuzz-guard.mjs"
   },
   "keywords": [
     "reverse-engineering",
@@ -51,7 +52,8 @@
     "skill",
     "docs",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "tools"
   ],
   "dsh": {
     "bundle": {

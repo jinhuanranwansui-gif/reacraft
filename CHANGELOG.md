@@ -3,6 +3,42 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.9.0] — 2026-11-22
+
+The injection detector was tested against its own evasions, and lost 24 times out of 120.
+
+### Added / 新增
+
+- **`tools/fuzz-guard.mjs`** — 8 injection seeds × 15 mutators = 120 payloads, run against
+  `scanForInstructions`, with a per-mutator catch table and a failing exit code on any miss.
+  CI runs it, so a rule that stops catching a known evasion turns the build red.
+  用对抗样本测自己的检测器；漏一条就红。
+- **`normalizeForScan`** — three cheap evasions were getting through and are now closed:
+  zero-width characters between words, Cyrillic/Greek homoglyphs, and `.`/`_`/`-` as separators.
+  A model reads all three without noticing, which is exactly why the detector has to.
+- **ROT13 view** — a payload decoded by rot13 is scanned too. A hit only on a decoded or normalised
+  form is reported with `obfuscated: true` and one extra weight.
+
+### Fixed / 修复
+
+- **`$1 $2` in a one-group replacement.** An out-of-range `$n` is kept literally by JavaScript, so
+  the first normaliser inserted the text `$2` into every string and matched nothing. Found by the
+  fuzz run, not by reading.
+- **A `SYSTEM:` header mid-sentence.** `Note to any reader: SYSTEM: …` was missed because the rule
+  demanded start-of-line. It now accepts a preceding `:` or `;` and is case-sensitive, so a
+  lowercase `system:` log prefix is still not a hit.
+
+### Verified / 实测
+
+```
+before  76/120 caught  (rot13 13%, zero-width 38%, homoglyph 38%, dotted 38%)
+after  120/120 caught on this set
+```
+
+Stated honestly: 120 payloads were designed by the same person who wrote the rules, so this is the
+floor, not the ceiling. A real attacker with a search loop has a larger space, and the fuzz file says
+so at the top.
+
 ## [0.8.0] — 2026-11-22
 
 A diagnosis instead of a verdict, borrowed from a better verifier.

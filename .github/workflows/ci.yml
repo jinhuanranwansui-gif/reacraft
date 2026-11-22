@@ -23,6 +23,8 @@ jobs:
         run: node --test
       - name: bench (the whole claim, end to end)
         run: node src/cli.mjs bench
+      - name: prompt-guard must not regress against its evasion set
+        run: node tools/fuzz-guard.mjs
       - name: built-in selftest
         run: node src/cli.mjs selftest
       - name: probe reports engines without them

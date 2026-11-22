@@ -18,7 +18,14 @@ const PATTERNS = [
   { id: 'override', weight: 5, re: /\b(ignore|disregard|forget|override)\s+(all\s+)?(the\s+)?(previous|prior|above|earlier|system)\s+(instructions?|prompts?|rules?|messages?)/i },
   { id: 'override-zh', weight: 5, re: /(忽略|无视|忘记)(掉)?(之前|以上|前面|上述|先前)的?(所有)?(指令|提示|规则|要求)/ },
   { id: 'chat-template', weight: 4, re: /<\|im_start\|>|<\|im_end\|>|<\|system\|>|<\|user\|>|<\|assistant\|>|\[INST\]|\[\/INST\]|<<SYS>>/ },
-  { id: 'system-header', weight: 4, re: /(^|\n)\s*(?:#{2,}\s*)?(SYSTEM|DEVELOPER|INSTRUCTION)\s*(?:PROMPT|MESSAGE|OVERRIDE)?\s*[:：]/i },
+  {
+    id: 'system-header',
+    // A header may be wrapped in quotes, brackets or markdown, and may follow a sentence:
+    // "Note to any reader: SYSTEM: …". Case-sensitive on purpose — a lowercase "system:" is a log
+    // prefix, an uppercase one is somebody talking to the model.
+    weight: 4,
+    re: /(^|\n|[:;])\s*["'(\[{*#>_~-]{0,6}(?:#{2,}\s*)?(SYSTEM|DEVELOPER|INSTRUCTION)\s*(?:PROMPT|MESSAGE|OVERRIDE)?\s*[:：]/,
+  },
   { id: 'role-assignment', weight: 4, re: /\byou\s+are\s+(now\s+|hereby\s+)?(an?\s+)?(AI|assistant|language\s+model|agent|helpful\s+assistant|DAN)\b/i },
   { id: 'role-assignment-zh', weight: 4, re: /你(现在)?(是|扮演|作为)(一个)?(AI|助手|模型|智能体)/ },
   { id: 'directive-verb', weight: 3, re: /\byou\s+must\s+(now\s+)?(output|print|respond|answer|reply|reveal|ignore|call|invoke|execute|write)\b/i },
@@ -32,6 +39,55 @@ const PATTERNS = [
 function candidate(value) {
   const v = String(value);
   return v.length >= 12 && v.length <= 4000;
+}
+
+// ---------------------------------------------------------------- evasions
+
+// A fuzz run against this file (samples/fuzz-guard.mjs) showed three cheap evasions getting past the
+// raw patterns: zero-width characters between words, Cyrillic/Greek lookalikes, and separators
+// instead of spaces. A model reads all three without noticing, so the detector has to see them too.
+const ZERO_WIDTH = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g;
+const HOMOGLYPHS = {
+  // Cyrillic
+  'а': 'a', 'е': 'e', 'о': 'o', 'с': 'c', 'р': 'p', 'х': 'x', 'у': 'y', 'і': 'i', 'ј': 'j', 'ѕ': 's',
+  'ԁ': 'd', 'ɡ': 'g', 'м': 'm', 'т': 't', 'н': 'h', 'в': 'b', 'к': 'k', 'п': 'n', 'г': 'r',
+  // Greek
+  'α': 'a', 'ε': 'e', 'ο': 'o', 'ρ': 'p', 'τ': 't', 'υ': 'u', 'ν': 'v', 'κ': 'k', 'ι': 'i',
+};
+const SEPARATORS = /([A-Za-z])[._\-·•*]+(?=[A-Za-z])/g;
+
+export function normalizeForScan(value) {
+  let s = String(value).replace(ZERO_WIDTH, '');
+  s = s.replace(/[\u0370-\u03FF\u0400-\u04FF]/g, (c) => HOMOGLYPHS[c] || c);
+  // "Ignore.all.previous" and "Ignore_all_previous" read as one sentence to a model. Only one
+  // capture group exists, so the replacement must not reference $2 — an out-of-range group is
+  // kept literally and would corrupt the text instead of normalising it.
+  s = s.replace(SEPARATORS, '$1 ');
+  return s;
+}
+
+export function rot13(value) {
+  return String(value).replace(/[a-z]/gi, (c) => {
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
+  });
+}
+
+// Every form of the string a reader might effectively see.
+function views(value) {
+  const raw = String(value);
+  const norm = normalizeForScan(raw);
+  const out = [raw];
+  if (norm !== raw) out.push(norm);
+  const r13 = rot13(norm);
+  if (r13 !== norm) out.push(r13);
+  return out;
+}
+
+function matchesIn(text) {
+  const matched = [];
+  for (const p of PATTERNS) if (p.re.test(text)) matched.push({ id: p.id, weight: p.weight });
+  return matched;
 }
 
 /**
@@ -51,9 +107,17 @@ export function scanForInstructions(strings = [], makeId = (v) => 'ev-instructio
   for (const raw of strings) {
     const value = String(raw);
     if (!candidate(value) || seen.has(value)) continue;
-    const matched = [];
-    for (const p of PATTERNS) {
-      if (p.re.test(value)) matched.push({ id: p.id, weight: p.weight });
+    // Try every form: as written, with evasions normalised, and rot13-decoded. A hit only on a
+    // normalised form is reported as obfuscated, which is itself worth knowing.
+    let matched = [];
+    let obfuscated = false;
+    for (const [i, view] of views(value).entries()) {
+      const m = matchesIn(view);
+      if (m.length) {
+        matched = m;
+        obfuscated = i > 0;
+        break;
+      }
     }
     if (!matched.length) continue;
     seen.add(value);
@@ -62,7 +126,8 @@ export function scanForInstructions(strings = [], makeId = (v) => 'ev-instructio
       value,
       preview: redact(value),
       matched: matched.map((m) => m.id),
-      weight: matched.reduce((a, m) => a + m.weight, 0),
+      weight: matched.reduce((a, m) => a + m.weight, 0) + (obfuscated ? 1 : 0),
+      obfuscated,
     });
   }
 
