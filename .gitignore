@@ -9,3 +9,4 @@ engines.json
 node_modules/
 *.log
 .DS_Store
+.git-commit-msg
