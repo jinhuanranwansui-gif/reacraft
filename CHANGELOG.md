@@ -3,6 +3,31 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.8.0] — 2026-11-22
+
+A diagnosis instead of a verdict, borrowed from a better verifier.
+
+### Added / 新增
+
+- **`nearestMatch` — a missing literal now comes with how close the rebuild got.** game-frame's
+  `bitcompare` reports a mismatch *plus* its distance in ULP ("1 ULP means one operation in a
+  different order; large differences mean a wrong formula"). The string-level analogue is the
+  longest shared anchor: a required endpoint whose host appears with a different path is a different
+  mistake from a host that is missing entirely, and the fix plan now says which one it is.
+  缺口诊断从"缺了"升级成"缺成什么样"：同一 host 不同 path，和整个 host 都没了，是两种错。
+- `verify` counts near misses in its per-item note, and `gaps` carries a `near` array with the
+  anchor, the text that appears instead, and the file.
+- Test: same host with a swapped route must report `near[0].anchor = api.example.test` and the gap
+  sentence must contain "near miss".
+
+### Verified / 实测
+
+```text
+ob-endpoints   0/2 patterns found (1 near miss)
+ask: Add these endpoints … https://api.example.test/v1/session — a near miss exists:
+     api.example.test appears as "api.example.test/v1/logout"
+```
+
 ## [0.7.0] — 2026-11-22
 
 Found by scanning a real machine: a failure mode where the right answer is to stop producing answers.

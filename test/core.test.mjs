@@ -372,6 +372,34 @@ test('an image whose every section is random yields no invented obligations', ()
   assert.ok(!/https?:\/\//.test(spec.request), 'no invented endpoint in the request');
 });
 
+test('a near miss is named, so the gap reads as a diagnosis and not a verdict', () => {
+  const dir = tmpdir();
+  const spec = {
+    schema: 'reacraft.spec/2',
+    name: 'near',
+    target: 'x',
+    gate: 80,
+    obligations: [{
+      id: 'ob-endpoints',
+      item: 'every hardcoded endpoint is present',
+      acceptance: 'presence',
+      patterns: ['https://api.example.test/v1/session'],
+      weight: 5,
+      why: 'test',
+    }],
+  };
+  // Same host, different path: the rebuild got the service right and the route wrong.
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const u = "https://api.example.test/v1/logout";\n');
+  const v = verify(spec, dir);
+  assert.equal(v.results[0].status, 'fail');
+  assert.equal(v.results[0].near.length, 1);
+  assert.equal(v.results[0].near[0].anchor, 'api.example.test');
+  assert.ok(v.results[0].near[0].at.includes('api.example.test'));
+
+  const gaps = buildGaps(spec, v);
+  assert.ok(gaps.gaps[0].ask.includes('near miss'), gaps.gaps[0].ask);
+});
+
 test('the bench proves the whole claim end to end', () => {
   const r = bench();
   assert.equal(r.ok, true, r.checks.filter((c) => !c.ok).map((c) => c.id + ': ' + c.what).join('; '));

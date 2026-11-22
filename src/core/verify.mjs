@@ -40,6 +40,44 @@ function symbolPresent(files, identSet, symbol) {
   return hit ? { via: 'regex' } : null;
 }
 
+// A missing pattern is useful only if the gap plan can say *how* it missed. Borrowed from the
+// bitcompare idea in game-frame: a mismatch plus a measure of how far off it is beats a bare
+// "not found". Here the measure is the longest shared anchor — the host of a URL, or the common
+// prefix of a path — followed by the text that actually appears.
+function findAll(text, needle, limit = 1) {
+  const out = [];
+  const n = needle.length;
+  let i = text.indexOf(needle);
+  while (i >= 0 && out.length < limit) {
+    out.push({ at: i, text: text.slice(i, i + Math.min(160, n * 2)) });
+    i = text.indexOf(needle, i + 1);
+  }
+  return out;
+}
+
+export function nearestMatch(needle, files) {
+  const n = String(needle);
+  // Only literals with structure get a nearest-match story: a bare word has no meaningful anchor.
+  if (!/[\/.:]/.test(n) || n.length < 6) return null;
+  const host = (n.match(/^[a-z]+:\/\/([^/]+)/i) || [])[1] || null;
+  const anchors = [];
+  if (host) anchors.push(host);
+  // A path anchor: the longest run of characters that is unlikely to be accidental.
+  const trimmed = n.replace(/^[a-z]+:\/\//i, '');
+  for (const len of [24, 16, 10]) {
+    if (trimmed.length >= len) { anchors.push(trimmed.slice(0, len)); break; }
+  }
+  for (const anchor of anchors) {
+    if (anchor.length < 6) continue;
+    for (const f of files) {
+      const hits = findAll(f.text, anchor, 1);
+      if (!hits.length) continue;
+      return { anchor, at: hits[0].text.replace(/[\r\n\t]+/g, ' ').slice(0, 120), file: f.rel };
+    }
+  }
+  return null;
+}
+
 function runObligation(o, ctx) {
   const check = checkFor(o);
   if (check.type === 'manual') return { status: 'pending', note: 'needs a human note', acceptance: 'manual' };
@@ -56,21 +94,27 @@ function runObligation(o, ctx) {
     if (!patterns.length) return { status: 'pending', note: 'no pattern to check', acceptance: 'manual' };
     const found = [];
     const missing = [];
+    const near = [];
     for (const p of patterns) {
       const hit = findIn(ctx.files, p);
-      if (hit) found.push({ pattern: p, file: hit.rel });
-      else missing.push(p);
+      if (hit) { found.push({ pattern: p, file: hit.rel }); continue; }
+      missing.push(p);
+      // How close did it get? Only worth computing once the pattern is known to be absent.
+      const n = nearestMatch(p, ctx.files);
+      if (n) near.push(n);
     }
     // Some of the literals being present is partial coverage, not a failure: the score
     // scales with the ratio, and the gap plan still names what is absent.
     const ratio = found.length / patterns.length;
     return {
       status: ratio === 1 ? 'pass' : ratio === 0 ? 'fail' : 'partial',
-      note: found.length + '/' + patterns.length + ' patterns found',
+      note: found.length + '/' + patterns.length + ' patterns found'
+        + (missing.length && near.length ? ' (' + near.length + ' near miss)' : ''),
       acceptance: 'auto',
       ratio,
       found,
       missing,
+      near,
     };
   }
 

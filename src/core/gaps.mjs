@@ -45,6 +45,9 @@ export function buildGaps(spec, verification) {
       action: what,
       ask: askFor(r, missing),
       blockers: missing.slice(0, 12),
+      // How close the rebuild came, when it came close: a host that is present with a different
+      // path is a different mistake from a host that is missing entirely.
+      near: (r.near || []).slice(0, 3),
     });
   }
   gaps.sort((a, b) => b.weight - a.weight || a.id.localeCompare(b.id));
@@ -69,13 +72,16 @@ function short(v) {
 }
 
 function askFor(r, missing) {
+  const near = (r.near || []).length
+    ? ' — a near miss exists: ' + (r.near[0].anchor) + ' appears as ' + JSON.stringify(r.near[0].at)
+    : '';
   if (r.status === 'pending') return 'Decide and record: ' + r.item;
-  if (r.id === 'ob-endpoints') return 'Add these endpoints to the rebuild config exactly as written: ' + missing.join(', ');
-  if (r.id === 'ob-literals') return 'Reference these exact paths, keys or statements in the rebuild: ' + missing.join(', ');
+  if (r.id === 'ob-endpoints') return 'Add these endpoints to the rebuild config exactly as written: ' + missing.join(', ') + near;
+  if (r.id === 'ob-literals') return 'Reference these exact paths, keys or statements in the rebuild: ' + missing.join(', ') + near;
   if (r.id === 'ob-managed-types' || r.id === 'ob-java-surface') return 'Implement or keep these types/classes: ' + missing.join(', ');
   if (r.id === 'ob-elf-libs') return 'Link or load these libraries: ' + missing.join(', ');
   if (r.id === 'ob-android-classes') return 'Declare these classes in the rebuild: ' + missing.join(', ');
-  return 'Satisfy: ' + r.item + (missing.length ? ' — missing: ' + missing.join(', ') : '');
+  return 'Satisfy: ' + r.item + (missing.length ? ' — missing: ' + missing.join(', ') + near : '');
 }
 
 function renderFixRequest(spec, verification, gaps) {
