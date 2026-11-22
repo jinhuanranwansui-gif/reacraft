@@ -3,6 +3,34 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.11.0] — 2026-11-22
+
+Ground truth, for the case where the original can actually run.
+
+### Added / 新增
+
+- **`golden` command** — runs a command the caller names, keeps what it printed, and records it in the
+  ledger. JSON output is parsed; anything else is kept as text. A crash is recorded as a crash, not
+  as a golden.
+  把原版跑一次的输出来存成 ground truth，并进台账。
+- **`verify --against "<command>"`** — runs the rebuild, compares its output to the golden leaf by
+  leaf, and reports exactly which path differs.
+- **`compareGolden` / `flatten`** — objects and arrays flattened to paths (`items[2]`), floats with a
+  1e-9 relative tolerance, type changes counted as changes, extra leaves reported separately.
+- **`ob-golden`** — one obligation, not one per leaf: the comparison itself says which leaves differ.
+- `bench` check `golden-match`; two tests (a matching run, and a crashed run recorded honestly).
+
+### Verified / 实测
+
+```text
+golden   83%   leaves=6 matched=5 changed=1 missing=0   exit 0
+  changed  items[2]: 3 → 4
+```
+
+Not game-frame's Unicorn harness: this compares printed output, not emulated memory. It is the
+middle rung between "the strings look right" and "the port is bit-identical", and it costs one
+subprocess.
+
 ## [0.10.0] — 2026-11-22
 
 Coverage learns the difference between "wrong" and "nearly right".

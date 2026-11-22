@@ -283,6 +283,26 @@ _RDATA  H=8.00    .rodata H=7.95   .msvcjmc H=7.96  CPADinfo H=7.95
 **最危险的那种字符串恰恰不命中任何解析规则**——一句"忽略之前的指令"里没有 URL、没有注册表路径、没有
 API 名——所以扫描必须覆盖全部字符串。
 
+## 原版能跑的时候，拿它当 ground truth
+
+地板是"什么都不运行也能算出来的东西"。当原版**确实能跑**时，有更好的答案可拿，所以留了一条路：
+
+```bash
+node src/cli.mjs golden sample --from "node dist/sample.js --json"
+node src/cli.mjs verify sample --rebuild build/ --against "node build/app.js --json"
+```
+
+```text
+golden   83%   leaves=6 matched=5 changed=1 missing=0   exit 0
+  changed  items[2]: 3 → 4
+```
+
+两次运行、两份输出，逐叶子比对：对象和数组摊平成路径（`items[2]`），浮点给 1e-9 的相对容差，
+类型变化（`1` 与 `"1"`）算变化。golden 本身进台账，**ground truth 也可审计**。
+
+它不是 GameFrame 那套 Unicorn 台架——比的是打印出来的输出，不是模拟出来的内存。但它把
+「字符串看着像」换成「重建打印了 4，原版打印的是 3」，那是另一种强度的主张。
+
 ## 它不是什么：验证台架
 
 [GameFrame](https://tanepiper.github.io/game-frame/) 做的是更难的那件事：用 Unicorn 跑原版自己的函数，

@@ -15,6 +15,7 @@ import { buildProfile } from './profile.mjs';
 import { buildSpec } from './spec.mjs';
 import { verify, attachSimilarity } from './verify.mjs';
 import { diceCoefficient } from './similarity.mjs';
+import { capture, compareGolden } from './golden.mjs';
 import { buildGaps } from './gaps.mjs';
 import { decodeShares } from './decode.mjs';
 import { toSarif, SARIF_VERSION } from './sarif.mjs';
@@ -134,7 +135,15 @@ export function bench() {
     const quoted = JSON.stringify(specB.capabilities) + JSON.stringify(specB.obligations);
     add('guard-marks-bait', 'instruction-like text is marked and never quoted', pb.guard.detected === true && !quoted.includes('Ignore all previous'));
 
-    // 8. outputs a CI can consume
+    // 8. ground truth from a run, when the original can run
+    const gscript = path.join(root, 'golden-probe.js');
+    fs.writeFileSync(gscript, 'console.log(JSON.stringify({ a: 1, b: [2, 3] }));\n');
+    const gcmd = 'node "' + gscript + '"';
+    const gc = capture(gcmd);
+    const gsame = compareGolden(gc, capture(gcmd));
+    add('golden-match', 'a run that prints the same output scores 100', gc.kind === 'json' && gsame.score === 100, 'leaves=' + gsame.leaves);
+
+    // 9. outputs a CI can consume
     const sarif = toSarif(spec, v1, { rebuildDir: rb, version: 'bench' });
     const sarifOk = sarif.version === SARIF_VERSION && sarif.runs[0].results.length > 0 && sarif.runs[0].tool.driver.rules.length > 0;
     add('sarif-shape', 'emits SARIF 2.1.0 with rules and results', sarifOk, sarif.runs[0].results.length + ' results');

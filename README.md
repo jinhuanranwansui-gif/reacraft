@@ -333,6 +333,29 @@ report's evidence table — so it scans **every string, not just the notable one
 The most dangerous string matches no parser rule at all — a sentence about ignoring instructions
 carries no URL, no registry path, no API name — which is exactly why the scan covers all of them.
 
+## Ground truth when the original runs
+
+The floor is what you can measure without running anything. When the original *does* run, there is a
+better answer available, so there is a way to take it:
+
+```bash
+node src/cli.mjs golden sample --from "node dist/sample.js --json"
+node src/cli.mjs verify sample --rebuild build/ --against "node build/app.js --json"
+```
+
+```text
+golden   83%   leaves=6 matched=5 changed=1 missing=0   exit 0
+  changed  items[2]: 3 → 4
+```
+
+Two runs, two outputs, compared leaf by leaf: objects and arrays are flattened to paths
+(`items[2]`), floats get a 1e-9 relative tolerance, and a type change (`1` vs `"1"`) counts as a
+change. The golden is recorded in the ledger, so the ground truth itself is auditable.
+
+It is not game-frame's Unicorn harness — it compares printed output, not emulated memory. But it
+replaces "the strings look right" with "the rebuild printed 4 where the original printed 3", and
+that is a different kind of claim.
+
 ## What this is not: a verification harness
 
 [GameFrame](https://tanepiper.github.io/game-frame/) does the harder thing. It runs the original's

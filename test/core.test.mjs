@@ -17,6 +17,7 @@ import { jaccard, coverage, minhashSignature, estimateJaccard } from '../src/cor
 import { record, prove, fileEntry } from '../src/core/ledger.mjs';
 import { detectKind, parsePE } from '../src/core/target.mjs';
 import { decodeFile } from '../src/core/decode.mjs';
+import { capture, compareGolden, flatten, goldenObligations } from '../src/core/golden.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -428,6 +429,39 @@ test('a near-identical literal is measured, not just marked missing', () => {
   fs.writeFileSync(path.join(rb, 'a.js'), 'const x = 1;\n');
   const sim2 = compare(p, rb);
   assert.equal(sim2.coverage.endpoints.weightedRatio, 0);
+});
+
+test('a golden run is ground truth a rebuild can be held to', () => {
+  const dir = tmpdir();
+  // Two commands that print JSON: one matches the golden, one does not.
+  const same = 'node -e "console.log(JSON.stringify({version:1,name:\'app\',endpoints:[\'a\',\'b\']}))"';
+  const other = 'node -e "console.log(JSON.stringify({version:2,name:\'app\',endpoints:[\'a\',\'c\']}))"';
+
+  const g = capture(same);
+  assert.equal(g.ok, true, 'capture should succeed: ' + g.stderr);
+  assert.equal(g.kind, 'json');
+  assert.equal(flatten(g.data).size, 4, 'version, name, endpoints[0], endpoints[1]');
+
+  const perfect = compareGolden(g, capture(same));
+  assert.equal(perfect.score, 100);
+  assert.equal(perfect.ok, true);
+
+  const changed = compareGolden(g, capture(other));
+  assert.equal(changed.score, 50, 'name and endpoints[0] still match: ' + changed.score);
+  assert.equal(changed.changed, 2);
+  assert.ok(changed.detail.changed.some((c) => c.path === 'version'));
+
+  // A contract gets one obligation, not one per leaf.
+  const obs = goldenObligations(g);
+  assert.equal(obs.length, 1);
+  assert.equal(obs[0].id, 'ob-golden');
+  assert.ok(obs[0].item.includes('4 output leaves'));
+});
+
+test('a crashed golden run is recorded, not silently trusted', () => {
+  const g = capture('node -e "process.exit(3)"');
+  assert.equal(g.exitCode, 3);
+  assert.equal(g.ok, false);
 });
 
 test('the bench proves the whole claim end to end', () => {

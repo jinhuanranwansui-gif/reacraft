@@ -11,12 +11,13 @@ import { buildSpec, writeSpec, readSpec, normaliseSpec, SPEC_SCHEMA } from './co
 import { verify, attachSimilarity } from './core/verify.mjs';
 import { buildGaps, summarise } from './core/gaps.mjs';
 import { writeReport } from './core/report.mjs';
-import { record, prove, fileEntry, sha256File } from './core/ledger.mjs';
+import { record, prove, fileEntry, sha256File, sha256Text } from './core/ledger.mjs';
 import { probeEngines, probePartners } from './core/engines.mjs';
 import { resolveCraft, resolveRea, craftCommand, craftAvailable, reaAvailable, run as runCli, reaAnalyze } from './core/partners.mjs';
 import { decodeFile } from './core/decode.mjs';
 import { bench } from './core/bench.mjs';
 import { toSarif } from './core/sarif.mjs';
+import { capture, writeGolden, readGolden, compareGolden, goldenObligations, flatten, GOLDEN_SCHEMA } from './core/golden.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -162,6 +163,16 @@ function cmdSpec(args) {
   if (!profile) fail('run rea first: no profile.json in ' + dir);
   const gate = args.gate ? Number(args.gate) : 80;
   const spec = buildSpec(profile, { name: slug, request: typeof args.request === 'string' ? args.request : null, gate });
+  // A recorded golden run outranks any literal: it is what the original actually printed.
+  const goldenFile = path.join(dir, 'golden.json');
+  if (fs.existsSync(goldenFile)) {
+    const g = readGolden(goldenFile);
+    for (const o of goldenObligations(g)) {
+      if (spec.obligations.some((x) => x.id === o.id)) continue;
+      spec.obligations.push(o);
+      spec.must_have.push({ id: o.id, item: o.item, weight: o.weight, check: { type: 'manual' } });
+    }
+  }
   const file = writeSpec(dir, spec);
   record(dir, 'spec', {
     input: [fileEntry(path.join(dir, 'profile.json'))],
@@ -248,7 +259,25 @@ function cmdVerify(args) {
     lines.push(summarise(gaps));
   }
   if (sarifFile) lines.push('', 'sarif    ' + sarifFile);
-  emit(args, { slug, verification: v, gaps, sarif: sarifFile }, lines.join('\n'));
+  // Ground truth, when the rebuild can be run at all: compare its output to the recorded golden.
+  let goldenCmp = null;
+  if (typeof args.against === 'string') {
+    const goldenFile = path.join(dir, 'golden.json');
+    if (!fs.existsSync(goldenFile)) fail('--against needs a golden: run `reacraft golden ' + slug + ' --from "<command>"` first');
+    const from = readGolden(goldenFile);
+    const actual = capture(args.against, { cwd: rebuild, timeout: Number(args.timeout) || 120000 });
+    goldenCmp = compareGolden(from, actual);
+    const cmpFile = writeJson(path.join(dir, 'golden-compare.json'), goldenCmp);
+    record(dir, 'golden-compare', { input: [fileEntry(goldenFile)], output: [fileEntry(cmpFile)], note: 'score=' + goldenCmp.score });
+    lines.push('', 'golden   ' + (goldenCmp.score === null ? 'n/a' : goldenCmp.score + '%')
+      + '   leaves=' + goldenCmp.leaves + ' matched=' + goldenCmp.matched
+      + ' changed=' + goldenCmp.changed + ' missing=' + goldenCmp.missing
+      + '   exit ' + goldenCmp.exitCodes.actual);
+    for (const c of goldenCmp.detail.changed.slice(0, 5)) lines.push('  changed  ' + c.path + ': ' + JSON.stringify(c.expected) + ' → ' + JSON.stringify(c.actual));
+    for (const m of goldenCmp.detail.missing.slice(0, 5)) lines.push('  missing  ' + m.path + ' (expected ' + JSON.stringify(m.expected) + ')');
+    if (goldenCmp.detail.extra.length) lines.push('  extra    ' + goldenCmp.detail.extra.length + ' leaf/leaves the original never printed');
+  }
+  emit(args, { slug, verification: v, gaps, sarif: sarifFile, golden: goldenCmp }, lines.join('\n'));
   return v.gateResult === 'below' ? 2 : 0;
 }
 
@@ -376,6 +405,26 @@ async function cmdAll(args) {
   return Math.max(rc1, rc2);
 }
 
+function cmdGolden(args) {
+  const { slug, dir } = need(args._[1]);
+  const command = typeof args.from === 'string' ? args.from : null;
+  if (!command) fail('golden needs --from "<command>" — the command that runs the original');
+  const g = capture(command, { cwd: dir, timeout: Number(args.timeout) || 120000 });
+  const file = writeGolden(dir, g);
+  record(dir, 'golden', { input: [{ name: 'command', sha256: sha256Text(command), bytes: command.length }], output: [fileEntry(file)], note: 'exit=' + g.exitCode + ' kind=' + g.kind });
+  const lines = [
+    'command  ' + command,
+    'exit     ' + g.exitCode + (g.error ? '  (' + g.error + ')' : ''),
+    'kind     ' + g.kind,
+    g.kind === 'json' ? 'leaves   ' + flatten(g.data).size : 'bytes    ' + (g.text || '').length,
+    'sha256   ' + g.sha256,
+    'wrote    ' + file,
+  ];
+  if (!g.ok) lines.push('', 'warning: the original did not exit cleanly; this golden is still recorded but a rebuild can only be held to it if the run was meaningful');
+  emit(args, { slug, golden: { kind: g.kind, exitCode: g.exitCode, sha256: g.sha256, file } }, lines.join('\n'));
+  return g.exitCode === 0 ? 0 : 2;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -455,6 +504,8 @@ function cmdHelp() {
   say('      --sign ob-behaviour="ran both, X differs"   sign one manual obligation (repeatable)');
   say('  gaps <slug> [--apply]                  show the fix plan, optionally write it into the spec');
   say('  decode <slug|path>                     recover masked string literals without running the target');
+  say('  golden <slug> --from "<command>"       run the original once and keep its output as ground truth');
+  say('  verify <slug> --against "<command>"    run the rebuild and compare its output to that golden');
   say('  report <slug> [--html]                 report.md + report.json (+ report.html)');
   say('  prove <slug>                           recompute the evidence chain');
   say('  status [--json]                        every project and its stage');
@@ -470,8 +521,8 @@ function cmdHelp() {
 
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
-  gaps: cmdGaps, decode: cmdDecode, report: cmdReport, prove: cmdProve, status: cmdStatus, all: cmdAll,
-  selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
+  gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
+  status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 
 const args = parseArgs(process.argv.slice(2));
