@@ -181,7 +181,7 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
 
   // ---- literals that a rebuild can be checked against verbatim
   const literals = (profile.strings?.notable || [])
-    .filter((n) => !n.decoy && ['registry', 'paths', 'task-scheduler', 'persistence', 'sql', 'embedded-url-api'].includes(n.rule))
+    .filter((n) => !n.decoy && !n.suspect && ['registry', 'paths', 'task-scheduler', 'persistence', 'sql', 'embedded-url-api'].includes(n.rule))
     .slice(0, 16);
   if (literals.length) {
     addObligation({

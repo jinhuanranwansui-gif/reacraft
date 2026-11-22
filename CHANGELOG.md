@@ -3,6 +3,32 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.6.0] — 2026-11-22
+
+Found by reading instead of writing: a published attack on this exact kind of tool, and a project
+that does the verification part better.
+
+### Added / 新增
+
+- **`src/core/prompt-guard.mjs` — instruction-like strings.** arXiv 2605.30667 showed that a string
+  constant the program never uses can be read as an order by any model that sees it. This tool hands
+  strings to a model three times, so it now scans **all** strings (the bait matches no parser rule),
+  marks hits `suspect: 'instruction-like'`, keeps them out of every sample and obligation, and prints
+  them redacted with their evidence id.
+  把"给模型看的字符串"当成攻击面来扫，命中即降级，报告里打码但保留 id。
+- `unknowns` gains `u-instruction-strings` when anything is found, and the report gains a section
+  listing the matched rules and weights.
+- `bench` check `guard-marks-bait`: a bait string must be detected and must not appear in any
+  contract.
+
+### Changed / 变更
+
+- README now states plainly what this is **not**: [GameFrame](https://tanepiper.github.io/game-frame/)
+  runs the original's functions under Unicorn and requires bit-for-bit equality with 104 checks. When
+  the original runs, that is the stronger test and it should be used. ReaCraft's claim narrows to
+  "the floor you can always compute, without running anything" — a weaker claim, honestly labelled.
+  在 README 里承认 GameFrame 的验证更深，把自己的口径收窄到"不运行就能算出的地板"。
+
 ## [0.5.0] — 2026-11-22
 
 Reads binaries that ship behind a commercial wrapper, and says exactly how much of them it can see.

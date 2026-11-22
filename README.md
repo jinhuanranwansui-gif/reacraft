@@ -285,6 +285,36 @@ Detectors are structural: `.bind`/`.steam`, `UPX0`/`UPX1`, `.vmp*`, `.themida`, 
 entropy threshold, and the entry-point location. No product string is trusted on its own, and a
 plain binary is not accused of carrying a wrapper (there is a test for that too).
 
+## Instruction-like strings
+
+[arXiv 2605.30667](https://arxiv.org/abs/2605.30667) (May 2026) demonstrated the attack that
+targets the reader rather than the binary: put text in a string constant the program never uses, and
+a model that reads the decompiled code or the strings pass takes it as an order. The program still
+runs correctly, so nothing looks wrong from the outside.
+
+This tool hands strings to a model in three places — the profile, the spec's quoted samples, the
+report's evidence table — so it scans **every string, not just the notable ones**, and then:
+
+- marks a hit `suspect: 'instruction-like'` together with the rules that fired;
+- never lets it become a sample, a pattern or an obligation;
+- prints it in the report redacted (`[instruction-like: Ignore all previous…]`) beside its evidence
+  id, so a person can still go and check the bytes.
+
+The most dangerous string matches no parser rule at all — a sentence about ignoring instructions
+carries no URL, no registry path, no API name — which is exactly why the scan covers all of them.
+
+## What this is not: a verification harness
+
+[GameFrame](https://tanepiper.github.io/game-frame/) does the harder thing. It runs the original's
+own functions under Unicorn and requires the port to match **bit for bit** — float bits, random
+draws in order, 104 checks in its own suite. If the original runs, that is a strictly stronger test
+than any string coverage, and you should use it.
+
+ReaCraft measures what it can see without running anything. That is the weaker claim, and it is the
+only one available when the target cannot run — wrong platform, needs a server, behind a DRM — or
+when you do not want to run it. The two are complementary rather than competing: an emulated ground
+truth is the ceiling, and this is the floor you can always compute.
+
 ## Into CI
 
 A rebuild that misses an obligation is a defect in that tree, so it can also be a SARIF result:

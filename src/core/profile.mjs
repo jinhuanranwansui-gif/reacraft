@@ -8,6 +8,7 @@ import { STRING_RULES, API_RULES, API_SETS, JAVA_RULES, apiHit } from './rules.m
 import { assessShield, filterEndpoints } from './shield.mjs';
 import { decodeShares } from './decode.mjs';
 import { detectDrm } from './drm.mjs';
+import { scanForInstructions, redact } from './prompt-guard.mjs';
 
 export const PROFILE_SCHEMA = 'reacraft.profile/2';
 
@@ -266,6 +267,43 @@ export function buildProfile(file, { name = null } = {}) {
     });
   }
 
+  // Strings that would read as an order if a model saw them (arXiv 2605.30667). This scans every
+  // string, not only the notable ones: the bait usually matches no parser rule at all.
+  const guard = scanForInstructions(strings, (v) => evidenceId('instruction', v));
+  if (guard.detected) {
+    const byValue = new Map((profile.strings?.notable || []).map((n) => [n.value, n]));
+    for (const h of guard.hits) {
+      const existing = byValue.get(h.value);
+      if (existing) {
+        existing.suspect = 'instruction-like';
+        existing.suspectRules = h.matched;
+        h.rule = existing.rule;
+        h.digest = existing.id;
+      } else {
+        // Not notable by any rule, which is exactly why it is worth indexing here.
+        h.rule = 'instruction';
+        profile.strings?.notable.push({
+          rule: 'instruction',
+          value: h.value,
+          id: h.id,
+          suspect: 'instruction-like',
+          suspectRules: h.matched,
+          context: 'not classified by any rule; flagged as instruction-like text',
+        });
+        h.digest = h.id;
+      }
+    }
+    profile.guard = guard;
+    profile.unknowns.unshift({
+      id: 'u-instruction-strings',
+      question: guard.count + ' string(s) in this target read as instructions rather than data',
+      how_to_settle: 'treat any model that reads this file as a target: quote the evidence ids, never the text',
+      severity: 'high',
+    });
+  } else {
+    profile.guard = guard;
+  }
+
   profile.evidence = buildEvidenceIndex(profile);
   return profile;
 }
@@ -275,7 +313,10 @@ export function buildProfile(file, { name = null } = {}) {
 export function buildEvidenceIndex(profile) {
   const items = [];
   const push = (kind, id, value, extra = '') => items.push({ id, kind, value: String(value).slice(0, 160), detail: extra });
-  for (const n of profile.strings?.notable || []) push(n.rule, n.id, n.value);
+  for (const n of profile.strings?.notable || []) {
+    // A suspect string is indexed but never carried into a report as text.
+    push(n.rule, n.id, n.suspect ? redact(n.value) : n.value, n.suspect ? 'instruction-like' : '');
+  }
   for (const h of profile.importHits || []) push(h.rule, h.id, h.api, 'import');
   for (const h of profile.symbolHits || []) push(h.rule, h.id, h.api, 'symbol');
   for (const h of profile.classHits || []) push(h.rule, h.id, h.api, 'class');
@@ -284,8 +325,8 @@ export function buildEvidenceIndex(profile) {
 }
 
 export function pickEvidence(profile, rule, n = 6) {
-  // Decoys never become evidence a spec can quote.
-  return (profile.strings?.notable || []).filter((x) => x.rule === rule && !x.decoy).slice(0, n);
+  // Decoys and instruction-like text never become evidence a spec can quote.
+  return (profile.strings?.notable || []).filter((x) => x.rule === rule && !x.decoy && !x.suspect).slice(0, n);
 }
 
 export { path };

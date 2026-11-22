@@ -45,6 +45,24 @@ export function renderMarkdown({ profile, spec, verification, gaps, proof = null
     L.push('');
   }
 
+  if (profile?.guard?.detected) {
+    const g = profile.guard;
+    L.push('## Instruction-like strings');
+    L.push('');
+    L.push('This target contains text that reads as an order rather than as data. A model given the');
+    L.push('strings of this file would read them as instructions (arXiv 2605.30667). They stay in');
+    L.push('`profile.json` as evidence; what follows is redacted, and the ids let you check the bytes.');
+    L.push('');
+    L.push('| evidence id | matched | weight | preview |');
+    L.push('|---|---|---|---|');
+    for (const h of g.hits.slice(0, 12)) {
+      L.push('| `' + h.id + '` | ' + h.matched.join(', ') + ' | ' + h.weight + ' | `' + oneLine(h.preview) + '` |');
+    }
+    L.push('');
+    for (const a of g.advice) L.push('- ' + a);
+    L.push('');
+  }
+
   L.push('## Verdict');
   L.push('');
   L.push('| metric | value |');
