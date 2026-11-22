@@ -50,10 +50,11 @@
     "dsh",
     "dsh.plugin.json",
     "skill",
-    "docs",
+    "tools",
+    "docs/*.md",
     "LICENSE",
     "README.md",
-    "tools"
+    "README.zh.md"
   ],
   "dsh": {
     "bundle": {
