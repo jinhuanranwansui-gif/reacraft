@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // reacraft 鈥?read a target, write the contract, rebuild it, score the rebuild, close the gap.
 //
 // Exit codes: 0 ok 路 1 usage or io error 路 2 gate not met (CI can rely on this)
