@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// reacraft 鈥?read a target, write the contract, rebuild it, score the rebuild, close the gap.
+// reacraft — read a target, write the contract, rebuild it, score the rebuild, close the gap.
 //
-// Exit codes: 0 ok 路 1 usage or io error 路 2 gate not met (CI can rely on this)
+// Exit codes: 0 ok · 1 usage or io error · 2 gate not met (CI can rely on this)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,7 +13,7 @@ import { buildGaps, summarise } from './core/gaps.mjs';
 import { writeReport } from './core/report.mjs';
 import { record, prove, fileEntry, sha256File } from './core/ledger.mjs';
 import { probeEngines, probePartners } from './core/engines.mjs';
-import { resolveCraft, resolveRea, craftCommand, run as runCli, reaAnalyze } from './core/partners.mjs';
+import { resolveCraft, resolveRea, craftCommand, craftAvailable, reaAvailable, run as runCli, reaAnalyze } from './core/partners.mjs';
 import { decodeFile } from './core/decode.mjs';
 import { bench } from './core/bench.mjs';
 import { toSarif } from './core/sarif.mjs';
@@ -21,6 +21,9 @@ import { toSarif } from './core/sarif.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const HOME = process.env.REACRAFT_HOME ? path.resolve(process.env.REACRAFT_HOME) : path.join(ROOT, 'projects');
+// One source of truth for the version: the package manifest.
+const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const VERSION = PKG.version;
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -38,7 +41,7 @@ function parseArgs(argv) {
   return out;
 }
 
-// --sign id=text ... 鈫?{ id: text }
+// --sign id=text ... → { id: text }
 function signNotes(args) {
   const notes = {};
   for (const s of Array.isArray(args.sign) ? args.sign : []) {
@@ -118,6 +121,7 @@ function cmdRea(args) {
   const profile = buildProfile(abs, { name: slug });
   let deep = null;
   if (args.deep) {
+    if (!reaAvailable()) fail('--deep needs the REA CLI; none was found. Run `reacraft probe`, install REA, or set REACRAFT_REA_CLI.');
     const r = reaAnalyze(abs, { timeout: Number(args.timeout) || 600000 });
     deep = { status: r.status, ok: r.status === 0, body: r.body || null, stderr: (r.stderr || '').slice(0, 800) };
     profile.deep = deep.ok ? { engine: 'rea', summary: summariseDeep(deep.body) } : { engine: 'rea', failed: true, stderr: deep.stderr };
@@ -188,6 +192,9 @@ function cmdCraft(args) {
     emit(args, { slug, dryRun: true, command: shown }, 'command  ' + shown + '\n\ndry run  (pass --run to execute; a rebuild drives a coding agent and can take a while)');
     return 0;
   }
+  if (!craftAvailable()) {
+    fail('craft-anything CLI not found (' + cmd.cli + '). Run `reacraft probe --partners`, install it, or set REACRAFT_CRAFT_CLI.');
+  }
   const r = runCli(cmd.cli, argv, { timeout: Number(args.timeout) || 1800000 });
   const outFile = writeJson(path.join(dir, 'craft-rebuild.json'), { status: r.status, stdout: r.stdout.slice(0, 40000), stderr: r.stderr.slice(0, 8000) });
   record(dir, 'craft-rebuild', { input: [fileEntry(path.join(dir, 'spec.json'))], output: [fileEntry(outFile)], note: 'exit=' + r.status });
@@ -218,7 +225,7 @@ function cmdVerify(args) {
   if (typeof args.sarif === 'string') {
     sarifFile = path.resolve(args.sarif);
     fs.mkdirSync(path.dirname(sarifFile), { recursive: true });
-    fs.writeFileSync(sarifFile, JSON.stringify(toSarif({ ...spec, gate }, v, { rebuildDir: rebuild, version: '0.3.0' }), null, 2), 'utf8');
+    fs.writeFileSync(sarifFile, JSON.stringify(toSarif({ ...spec, gate }, v, { rebuildDir: rebuild, version: VERSION }), null, 2), 'utf8');
   }
   record(dir, 'verify', {
     input: [fileEntry(path.join(dir, 'spec.json')), { name: 'rebuild-tree', sha256: null, bytes: null, path: rebuild }],
@@ -227,7 +234,7 @@ function cmdVerify(args) {
   });
 
   const lines = [];
-  lines.push('score    ' + (v.score === null ? 'n/a' : v.score + '%') + '   gate=' + gate + '% 鈫?' + v.gateResult);
+  lines.push('score    ' + (v.score === null ? 'n/a' : v.score + '%') + '   gate=' + gate + '% → ' + v.gateResult);
   lines.push('items    pass=' + v.pass + ' partial=' + v.partial + ' fail=' + v.fail + ' pending=' + v.pending + '   files=' + v.filesScanned);
   if (v.similarity) {
     const s = v.similarity;
@@ -438,7 +445,7 @@ function selftestImpl() {
 // ---------------------------------------------------------------- help
 
 function cmdHelp() {
-  say('reacraft 鈥?read a target, write the contract, rebuild it, score the rebuild, close the gap.');
+  say('reacraft ' + VERSION + ' — read a target, write the contract, rebuild it, score the rebuild, close the gap.');
   say('');
   say('  probe                                  engines, partners, project home');
   say('  rea <target> [--name slug] [--deep]    static read: format, symbols, strings, evidence ids');
@@ -455,7 +462,7 @@ function cmdHelp() {
   say('  selftest                               run the built-in end-to-end check');
   say('  bench                                  the full claim, run end to end on generated fixtures');
   say('');
-  say('Exit codes: 0 ok 路 1 usage/io 路 2 gate not met or chain broken.');
+  say('Exit codes: 0 ok · 1 usage/io · 2 gate not met or chain broken.');
   say('Project home: ' + HOME + ' (override with REACRAFT_HOME)');
 }
 
@@ -468,6 +475,7 @@ const table = {
 };
 
 const args = parseArgs(process.argv.slice(2));
+if (args.version || args.V) { say('reacraft ' + VERSION); process.exit(0); }
 const cmd = args._[0] || 'help';
 if (!table[cmd]) { cmdHelp(); process.exit(1); }
 const code = await Promise.resolve(table[cmd](args));

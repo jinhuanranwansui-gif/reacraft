@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/jinhuanranwansui-gif/reacraft/security/advisories/new
+    about: A parser crash on hostile input is in scope. Please report it privately.
+  - name: How scoring works
+    url: https://github.com/jinhuanranwansui-gif/reacraft/blob/main/docs/CONTRACT.md
+    about: Read this before disagreeing with a score.

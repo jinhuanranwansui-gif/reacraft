@@ -1,0 +1,45 @@
+name: Feature request
+description: A format to read, a check to add, or a way this should behave differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can't you do today?
+      description: Describe the situation, not the solution. The solution is the next box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: If it changes a score, say which obligation it should create and what the acceptance test would be.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: shape
+    attributes:
+      label: What kind of change is this
+      options:
+        - new format / parser
+        - new obligation or acceptance kind
+        - new output (report / sarif / json)
+        - shield / decode coverage
+        - DSH plugin surface
+        - docs
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints of this project
+      options:
+        - label: It needs no new dependency
+          required: false
+        - label: It can be tested without network or an external engine
+          required: false
+        - label: It does not require executing the target
+          required: false

@@ -27,6 +27,20 @@ export function resolveRea() {
   return process.env.REACRAFT_REA_CLI || specPath('rea') || 'rea';
 }
 
+// Is the CLI actually there? `resolveCraft()` returns a bare name when nothing was found, and a
+// bare name would only fail later, inside a spawn, with an unhelpful ENOENT.
+export function craftAvailable() {
+  const c = resolveCraft();
+  if (/[\\/]/.test(c)) return fs.existsSync(c);
+  return Boolean(which(c));
+}
+
+export function reaAvailable() {
+  const r = resolveRea();
+  if (/[\\/]/.test(r)) return fs.existsSync(r);
+  return Boolean(which(r));
+}
+
 export function parseJsonLoose(text) {
   if (!text) return null;
   const t = String(text).trim();

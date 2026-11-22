@@ -1,5 +1,11 @@
 # ReaCraft
 
+[![ci](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/jinhuanranwansui-gif/reacraft?color=blue)](https://github.com/jinhuanranwansui-gif/reacraft/releases)
+[![license](https://img.shields.io/github/license/jinhuanranwansui-gif/reacraft)](LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A518.17-brightgreen)](package.json)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+
 **English** · [中文](README.zh.md) · [Changelog](CHANGELOG.md) · [Contract](docs/CONTRACT.md)
 
 Read a target, write a contract, rebuild it, score the rebuild, close the gap.
@@ -224,6 +230,20 @@ node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
 weight, acceptance kind and evidence ids. Drop the file into GitHub code scanning and the score lands
 next to the pull request.
 
+Or skip the wiring — this repository is also a composite action:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: jinhuanranwansui-gif/reacraft@v0.4.0
+  with:
+    target: samples/target.bin
+    rebuild: build/
+    gate: 85
+```
+
+It writes the score into the job summary, fails below the gate, and uploads the SARIF when the job
+has `security-events: write`.
+
 ## Limits, stated up front
 
 - Static only. Nothing from the target is executed. Behaviour is a human obligation.
@@ -238,7 +258,7 @@ next to the pull request.
 ## Verify the claims
 
 ```bash
-node --test          # 16 tests, no fixtures, no network
+node --test          # 19 tests, no fixtures, no network
 node src/cli.mjs bench       # the whole claim, end to end, on generated fixtures
 node src/cli.mjs selftest    # read → spec → verify → gaps → ledger tamper check
 ```

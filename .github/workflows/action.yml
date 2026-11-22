@@ -1,0 +1,36 @@
+name: action
+
+# The repository uses its own action. If action.yml breaks, this job breaks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  score-the-example:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: rc
+        uses: ./
+        with:
+          target: examples/hello/target.txt
+          rebuild: examples/hello/rebuild
+          gate: '20'
+          upload: 'false'
+
+      - name: the action must report a score and a verdict
+        run: |
+          echo "score=${{ steps.rc.outputs.score }} gate=${{ steps.rc.outputs.gate-result }}"
+          test -n "${{ steps.rc.outputs.score }}"
+          test "${{ steps.rc.outputs.gate-result }}" = "pass"
+
+      - name: the example must still be partial, not perfect
+        run: |
+          # examples/hello/rebuild is deliberately incomplete; a 100 here means the
+          # scorer stopped noticing missing literals.
+          test "${{ steps.rc.outputs.score }}" -lt 100

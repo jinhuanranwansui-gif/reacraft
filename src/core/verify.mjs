@@ -15,8 +15,16 @@ function escRe(s) {
 }
 
 function findIn(files, needle, { caseSensitive = false } = {}) {
-  const n = caseSensitive ? needle : String(needle).toLowerCase();
+  const raw = String(needle);
+  // A short literal matched as a substring would be satisfied by a longer word that merely
+  // contains it ("Run" inside "Runtime"). Under five characters, require a token boundary.
+  const needBoundary = raw.length < 5;
+  const re = needBoundary
+    ? new RegExp('(^|[^A-Za-z0-9_])' + escRe(raw) + '([^A-Za-z0-9_]|$)', caseSensitive ? '' : 'i')
+    : null;
+  const n = caseSensitive ? raw : raw.toLowerCase();
   const hit = files.find((f) => {
+    if (re) return re.test(f.text);
     const text = caseSensitive ? f.text : f.text.toLowerCase();
     return text.includes(n);
   });

@@ -1,0 +1,80 @@
+name: 'ReaCraft score'
+description: 'Score a rebuild against a contract derived from the original target, fail below the gate, and upload the result as SARIF.'
+author: 'jinhuanranwansui-gif'
+branding:
+  icon: 'crosshair'
+  color: 'blue'
+
+inputs:
+  target:
+    description: 'Path (or URL) of the original artifact to read.'
+    required: true
+  rebuild:
+    description: 'Folder holding the rebuild source tree.'
+    required: true
+  slug:
+    description: 'Project name used for the analysis folder.'
+    required: false
+    default: 'ci'
+  gate:
+    description: 'Pass mark in percent. The step fails below it.'
+    required: false
+    default: '80'
+  sarif:
+    description: 'Where to write the SARIF log.'
+    required: false
+    default: 'reacraft.sarif'
+  upload:
+    description: 'Upload the SARIF to GitHub code scanning (needs security-events: write).'
+    required: false
+    default: 'true'
+
+outputs:
+  score:
+    description: 'Obligation score in percent (empty when nothing could be judged).'
+    value: ${{ steps.score.outputs.score }}
+  gate-result:
+    description: 'pass, below or unknown.'
+    value: ${{ steps.score.outputs.gate }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: score
+      shell: bash
+      env:
+        REACRAFT_HOME: ${{ runner.temp }}/reacraft-projects
+      run: |
+        set -euo pipefail
+        cli="${{ github.action_path }}/src/cli.mjs"
+        node --version
+        node "$cli" rea "${{ inputs.target }}" --name "${{ inputs.slug }}"
+        node "$cli" spec "${{ inputs.slug }}" --gate "${{ inputs.gate }}"
+        # verify exits 2 when the score is under the gate; capture it instead of failing here
+        set +e
+        node "$cli" verify "${{ inputs.slug }}" --rebuild "${{ inputs.rebuild }}" \
+          --gate "${{ inputs.gate }}" --sarif "${{ inputs.sarif }}" | tee /tmp/reacraft-verify.txt
+        code=${PIPESTATUS[0]}
+        set -e
+        score=$(node -e "const v=require('$REACRAFT_HOME/${{ inputs.slug }}/verification.json');process.stdout.write(String(v.score ?? ''))")
+        gate=$(node -e "const v=require('$REACRAFT_HOME/${{ inputs.slug }}/verification.json');process.stdout.write(String(v.gateResult ?? 'unknown'))")
+        echo "score=$score" >> "$GITHUB_OUTPUT"
+        echo "gate=$gate" >> "$GITHUB_OUTPUT"
+        {
+          echo '### ReaCraft'
+          echo ''
+          echo "| metric | value |"
+          echo "|---|---|"
+          echo "| obligation score | ${score}% |"
+          echo "| gate | ${{ inputs.gate }}% → ${gate} |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        cat /tmp/reacraft-verify.txt >> "$GITHUB_STEP_SUMMARY"
+        exit "$code"
+
+    - name: Upload SARIF
+      if: ${{ inputs.upload == 'true' && always() }}
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
+      with:
+        sarif_file: ${{ inputs.sarif }}
+        category: reacraft

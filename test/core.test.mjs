@@ -8,7 +8,9 @@ import path from 'node:path';
 
 import { buildProfile } from '../src/core/profile.mjs';
 import { buildSpec } from '../src/core/spec.mjs';
+import { normaliseSpec, SPEC_SCHEMA } from '../src/core/spec.mjs';
 import { verify } from '../src/core/verify.mjs';
+import { compare } from '../src/core/similarity.mjs';
 import { buildGaps } from '../src/core/gaps.mjs';
 import { jaccard, coverage, minhashSignature, estimateJaccard } from '../src/core/similarity.mjs';
 import { record, prove, fileEntry } from '../src/core/ledger.mjs';
@@ -178,6 +180,55 @@ test('decode stays quiet on an ordinary file', () => {
   const { file } = sampleTarget();
   const r = decodeFile(file);
   assert.equal(r.decoded.length, 0);
+});
+
+test('a short pattern needs a token boundary, not a substring', () => {
+  const dir = tmpdir();
+  // "Run" must not be satisfied by "Runtime".
+  const spec = {
+    schema: 'reacraft.spec/2',
+    name: 't',
+    target: 'x',
+    gate: 80,
+    obligations: [{ id: 'ob-short', item: 'the run key', acceptance: 'presence', patterns: ['Run'], weight: 5, why: 'test' }],
+  };
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const Runtime = 1;\n');
+  assert.equal(verify(spec, dir).results[0].status, 'fail');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const k = "Run";\n');
+  assert.equal(verify(spec, dir).results[0].status, 'pass');
+});
+
+test('minhash is reported as null when the literal set is too small to estimate', () => {
+  const { file } = sampleTarget();
+  const p = buildProfile(file);
+  const dir = tmpdir();
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const u = "https://api.example.test/v1/login";\n');
+  const sim = compare(p, dir);
+  assert.equal(sim.minhashJaccard, null);
+  assert.ok(sim.caveats.some((c) => c.includes('minhashJaccard is null')));
+});
+
+test('a v1 spec is adapted rather than refused', () => {
+  const dir = tmpdir();
+  const v1 = {
+    schema: 'reacraft.spec/1',
+    name: 'old',
+    target: 'x',
+    gate: 80,
+    must_have: [
+      { id: 'm-net', item: 'endpoints present', weight: 3, check: { type: 'regex-any', patterns: ['https://old.example.test/x'] } },
+      { id: 'm-man', item: 'a human looked', weight: 2, check: { type: 'manual' } },
+    ],
+  };
+  const spec = normaliseSpec(v1);
+  assert.equal(spec.schema, SPEC_SCHEMA);
+  assert.equal(spec.obligations.length, 2);
+  assert.equal(spec.obligations[0].acceptance, 'presence');
+  assert.equal(spec.obligations[1].acceptance, 'manual');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const u = "https://old.example.test/x";\n');
+  const v = verify(spec, dir);
+  assert.equal(v.results[0].status, 'pass');
+  assert.equal(v.results[1].status, 'pending');
 });
 
 test('the bench proves the whole claim end to end', () => {

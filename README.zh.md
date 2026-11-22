@@ -1,5 +1,11 @@
 # ReaCraft
 
+[![ci](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/jinhuanranwansui-gif/reacraft?color=blue)](https://github.com/jinhuanranwansui-gif/reacraft/releases)
+[![license](https://img.shields.io/github/license/jinhuanranwansui-gif/reacraft)](LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A518.17-brightgreen)](package.json)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+
 [English](README.md) · **中文** · [变更日志](CHANGELOG.md) · [合同与评分口径](docs/CONTRACT.zh.md)
 
 读目标 → 写合同 → 重建 → 打分 → 把差额变成下一步。
@@ -187,6 +193,19 @@ node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
 `fail` → `error`，`partial` → `warning`，`pending` → `note`；每条 rule 带权重、验收方式和 evidence id。
 把文件丢进 GitHub code scanning，分数就贴在 PR 旁边。
 
+懒得接线也行，这个仓库本身就是一个 composite action：
+
+```yaml
+- uses: actions/checkout@v4
+- uses: jinhuanranwansui-gif/reacraft@v0.4.0
+  with:
+    target: samples/target.bin
+    rebuild: build/
+    gate: 85
+```
+
+分数写进 job summary，低于门槛就失败，有 `security-events: write` 就把 SARIF 传上去。
+
 ## 局限（先说清楚）
 
 - 只做静态。不执行目标。行为是人来签的义务。
@@ -199,7 +218,7 @@ node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
 ## 自己验一遍
 
 ```bash
-node --test                    # 16 个测试，无外部样本，无网络
+node --test                    # 19 个测试，无外部样本，无网络
 node src/cli.mjs bench         # 整条主张，端到端，全用生成的样本
 node src/cli.mjs selftest      # 读 → 规格 → 打分 → 差额 → 篡改检测
 ```

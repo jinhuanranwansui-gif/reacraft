@@ -225,7 +225,9 @@ export function compare(profile, rebuildDir, { rebuildProfile = null, spec = nul
 
   const sigA = minhashSignature(req.literals);
   const sigB = minhashSignature(new Set([...c.literals]));
-  const minhash = estimateJaccard(sigA, sigB);
+  // On a small literal set the estimate has no meaning, and printing 0 next to a coverage of 61%
+  // reads as a contradiction. Say "not computed" instead of a number nobody should trust.
+  const minhash = req.literals.size >= 20 && c.literals.size >= 20 ? estimateJaccard(sigA, sigB) : null;
 
   const score = wsum ? Math.round((acc / wsum) * 100) : null;
   const requirements = parts.reduce((a, [, cov]) => a + cov.total, 0);
@@ -242,9 +244,12 @@ export function compare(profile, rebuildDir, { rebuildProfile = null, spec = nul
     confidence,
     caveats: [
       'coverage counts presence, not behaviour: a literal can appear without being used',
-      'minhashJaccard is an estimate over literals only, not over code',
+      req.literals.size < 20 || c.literals.size < 20
+        ? 'minhashJaccard is null: the literal set is too small for an estimate to mean anything'
+        : 'minhashJaccard is an estimate over literals only, not over code',
       'low confidence means few requirements or a tiny rebuild tree, not a bad rebuild',
-    ],
+      c.files === 0 ? 'no readable source files were found in the rebuild: coverage here is structural only' : null,
+    ].filter(Boolean),
   };
 }
 

@@ -1,0 +1,72 @@
+name: Bug report
+description: Something crashed, scored wrongly, or said nothing when it should have said something.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The single most useful thing you can paste is a **synthetic input** — a few lines that
+        reproduce the behaviour. It becomes a test.
+
+        Please run `node src/cli.mjs bench` first and paste the result: it separates "this machine"
+        from "this code".
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `reacraft --version`
+      placeholder: reacraft 0.3.0
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and Node version
+      placeholder: Windows 11, Node 24.14.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: bench
+    attributes:
+      label: bench output
+      description: '`node src/cli.mjs bench`'
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: What you ran
+      description: Command, plus the smallest input that shows it
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - read (format / parser / strings)
+        - spec (obligations / request)
+        - verify (scoring / gate)
+        - gaps (fix plan)
+        - decode (masked literals)
+        - shield (detection / decoys)
+        - sarif / report
+        - DSH plugin
+        - CLI / docs
+    validations:
+      required: true

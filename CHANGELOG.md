@@ -3,6 +3,45 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-11-22
+
+The release that makes it a project rather than a script: a version, an action, a security policy,
+and three correctness fixes that were genuinely wrong.
+
+### Added / 新增
+
+- **`--version`** — the CLI reports `reacraft <version>`; the SARIF driver version now comes from the
+  same manifest field, so the two can never drift.
+- **`action.yml`** — a composite GitHub Action. Reads the target, writes the contract, scores the
+  rebuild, fails below the gate, writes the score into the job summary, and uploads the SARIF when
+  the job allows it. `uses: jinhuanranwansui-gif/reacraft@v0.4.0`.
+- **`SECURITY.md`** — what is in scope (a parser crash on hostile input) and what is not (a shield
+  defeating the reader is the designed behaviour).
+- **`CONTRIBUTING.md`** — the three rules: run the bench, read the contract, look for prior art.
+  Plus what a pull request needs, and the style the code here is held to.
+- **`CODE_OF_CONDUCT.md`**, **`.editorconfig`**, issue forms (bug / feature) and a pull request
+  template that asks for the same checks CI runs.
+- README badges: ci, release, license, node, dependencies.
+
+### Fixed / 修复
+
+- **A short pattern matched as a substring.** `Run` was satisfied by `Runtime`, so an obligation
+  about a registry key could pass on code that never touches it. Under five characters a token
+  boundary is now required; there is a test for exactly this pair.
+- **`minhashJaccard: 0` next to `similarity: 61%`** read as a contradiction. The estimate is now
+  `null` below 20 literals on either side, with a caveat that says why, instead of a number nobody
+  should trust on a small set.
+- **`craft --run` and `rea --deep` failed late** with an ENOENT from inside a spawn. Both now check
+  the CLI first and say which knob to set (`REACRAFT_CRAFT_CLI` / `REACRAFT_REA_CLI`).
+- **`src/cli.mjs` carried mangled punctuation** — PowerShell's `Set-Content -Encoding UTF8`
+  round-trip turned em dashes, middle dots and arrows into mojibake on six lines. Repaired, and the
+  rule is now in the contributing guide: write source files with an explicit no-BOM UTF-8 writer.
+
+### Verified / 实测
+
+`node --test`: 19 tests. `node src/cli.mjs bench`: 16 checks, ~60 ms. CI: 3 OS × 3 Node, including
+the bench and a BOM-free syntax check on Linux.
+
 ## [0.3.0] — 2026-11-22
 
 The masked literals come back, and the score lands in CI.
