@@ -1,5 +1,6 @@
 # ReaCraft
 
+[![npm](https://img.shields.io/npm/v/reacraft?color=cb3837&label=npm)](https://www.npmjs.com/package/reacraft)
 [![ci](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml/badge.svg)](https://github.com/jinhuanranwansui-gif/reacraft/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/jinhuanranwansui-gif/reacraft?color=blue)](https://github.com/jinhuanranwansui-gif/reacraft/releases)
 [![license](https://img.shields.io/github/license/jinhuanranwansui-gif/reacraft)](LICENSE)
@@ -112,10 +113,10 @@ read over instead of competing.
 
 ## Install
 
-Nothing to install for the core:
+One command, no install:
 
 ```bash
-npx reacraft probe          # after the npm release; until then, clone and run node src/cli.mjs
+npx reacraft probe
 ```
 
 As a CLI:
