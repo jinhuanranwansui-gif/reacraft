@@ -93,14 +93,37 @@ test('verify scores partial coverage and never rewards a fail', () => {
   assert.equal(full.gateResult, 'pass');
 });
 
-test('a manual obligation stays pending and is excluded from the score', () => {
+test('a manual obligation stays pending until someone signs it', () => {
   const { file } = sampleTarget();
   const spec = buildSpec(buildProfile(file), { name: 't' });
   const dir = tmpdir();
   fs.writeFileSync(path.join(dir, 'a.js'), 'x');
-  const v = verify(spec, dir);
-  assert.ok(v.pending >= 1);
-  assert.equal(v.results.find((r) => r.id === 'ob-behaviour').status, 'pending');
+  const unsigned = verify(spec, dir);
+  assert.ok(unsigned.pending >= 1);
+  assert.equal(unsigned.results.find((r) => r.id === 'ob-behaviour').status, 'pending');
+
+  const signed = verify(spec, dir, { notes: { 'ob-behaviour': 'ran both, the panel text differs' } });
+  const item = signed.results.find((r) => r.id === 'ob-behaviour');
+  assert.equal(item.status, 'pass');
+  assert.equal(item.signed, true);
+  assert.ok(item.note.includes('ran both'));
+  // An automatic obligation cannot be signed into a pass.
+  const cheat = verify(spec, dir, { notes: { 'ob-endpoints': 'trust me' } });
+  assert.notEqual(cheat.results.find((r) => r.id === 'ob-endpoints').status, 'pass');
+});
+
+test('a templated URL is evidence, never a requirement', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 't.txt');
+  fs.writeFileSync(file, [
+    'https://real.example.test/v1/ping',
+    'https://nodejs.org/docs/v${process.versions.node}/api',
+    'https://fmt.example.test/%s/thing',
+  ].join('\n'));
+  const p = buildProfile(file);
+  assert.ok(p.endpoints.includes('https://real.example.test/v1/ping'));
+  assert.ok(!p.endpoints.some((u) => u.includes('${')));
+  assert.ok(!p.endpoints.some((u) => u.includes('%s')));
 });
 
 test('gaps become a fix request that names the missing literal', () => {

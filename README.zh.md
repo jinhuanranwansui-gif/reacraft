@@ -71,6 +71,9 @@ node src/cli.mjs verify sample --rebuild build/sample
 #    similar 22% (low confidence, minhash=0)
 #    pass=0 partial=3 fail=2 pending=1
 
+#    人工义务要签，不要猜；那句话就是它的证据
+node src/cli.mjs verify sample --rebuild build/sample --sign 'ob-behaviour=跑了两个，面板文字不同'
+
 # 5. 把差额写回规格，成为下一轮指令
 node src/cli.mjs gaps sample --apply
 
@@ -146,10 +149,25 @@ node src/cli.mjs prove sample
 ## 自己验一遍
 
 ```bash
-node --test                    # 10 个测试，无外部样本，无网络
+node --test                    # 11 个测试，无外部样本，无网络
 node src/cli.mjs selftest      # 端到端：读 → 规格 → 打分 → 差额 → 篡改检测
 node src/cli.mjs all examples/hello/target.txt --name demo --rebuild examples/hello/rebuild
 ```
+
+### 真跑过一次
+
+`default_app.asar`（DSH 自带的 Electron 默认应用）：读 → 出合同 → 交给 craft-anything 用
+DeepSeek 后端重建 → 从外部打分：
+
+```
+score 100%  gate=80% → pass        pass=5 partial=0 fail=0 pending=1
+similar 67% (medium confidence)
+  pending ob-behaviour   需要人签
+```
+
+第一次是 96%，唯一的 `partial` 缺的是
+`https://nodejs.org/docs/v${process.versions.node}/api`——原文里的模板字符串，任何重建都不可能
+逐字含有。那次跑出来的就是这个规则：模板 URL 只作证据，不作要求。
 
 ## 许可
 

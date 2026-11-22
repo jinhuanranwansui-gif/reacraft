@@ -89,6 +89,9 @@ node src/cli.mjs verify sample --rebuild build/sample
 #    if the tree came from craft-anything, its source lives in <craft project>/app:
 node src/cli.mjs verify sample --rebuild path/to/craft-project/app
 
+#    a manual obligation is signed, never guessed; the sentence becomes its evidence
+node src/cli.mjs verify sample --rebuild build/sample --sign 'ob-behaviour=ran both, the panel text differs'
+
 # 5. push the gap plan back into the spec as the next instruction
 node src/cli.mjs gaps sample --apply
 
@@ -180,12 +183,28 @@ Design notes:
 ## Verify the claims
 
 ```bash
-node --test          # 10 tests, no fixtures, no network
+node --test          # 11 tests, no fixtures, no network
 node src/cli.mjs selftest   # end-to-end: read → spec → verify → gaps → ledger tamper check
 ```
 
 The selftest includes the bug that mattered: a rebuild with a failing obligation once scored
 100 because failures were earning their weight. It is now an assertion.
+
+### One real run
+
+`default_app.asar` — the Electron default app inside DeepSeek Harness — read, specced, rebuilt by
+craft-anything with a DeepSeek backend, then scored from outside:
+
+```
+score 100%  gate=80% → pass        pass=5 partial=0 fail=0 pending=1
+similar 67% (medium confidence)
+  pending ob-behaviour   needs a human note
+```
+
+The first pass was 96% with one `partial`, and the missing pattern was
+`https://nodejs.org/docs/v${process.versions.node}/api` — a template literal from the original that
+no rebuild could contain verbatim. That run is why templated URLs are now evidence and not
+requirements.
 
 ## License
 

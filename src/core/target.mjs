@@ -488,6 +488,10 @@ export function extractEndpoints(strings) {
       const cut = clean.search(/[)"'<>\s，。）】]/);
       if (cut > 0) clean = clean.slice(0, cut);
       clean = clean.replace(/[.,;:]+$/, '');
+      // A URL built by a template is not an endpoint: `https://nodejs.org/docs/v${version}/api`
+      // would be required verbatim from a rebuild that can never contain it. The literal stays
+      // in the strings profile as evidence; it just does not become a requirement.
+      if (/\$\{|\{\{|%[sdv](?![a-z])|#\{|`/.test(clean)) continue;
       const host = (clean.match(/^[a-z]+:\/\/([^/:]+)/i) || [])[1] || '';
       if (host.length < 4 || host.length > 120) continue;
       if (!/^[a-z0-9.-]+$/i.test(host)) continue;

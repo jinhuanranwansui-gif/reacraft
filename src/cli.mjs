@@ -26,11 +26,25 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith('--')) out[key] = true;
-      else { out[key] = next; i++; }
+      const value = (next === undefined || next.startsWith('--')) ? true : (i++, next);
+      // --sign may repeat: one manual obligation per flag.
+      if (key === 'sign') (out.sign = out.sign || []).push(value);
+      else out[key] = value;
     } else out._.push(a);
   }
   return out;
+}
+
+// --sign id=text ... → { id: text }
+function signNotes(args) {
+  const notes = {};
+  for (const s of Array.isArray(args.sign) ? args.sign : []) {
+    if (typeof s !== 'string') continue;
+    const at = s.indexOf('=');
+    if (at <= 0) continue;
+    notes[s.slice(0, at).trim()] = s.slice(at + 1).trim();
+  }
+  return notes;
 }
 
 function slugFor(target, explicit) {
@@ -186,7 +200,7 @@ function cmdVerify(args) {
   const profile = readJson(path.join(dir, 'profile.json'));
   const gate = args.gate ? Number(args.gate) : spec.gate;
 
-  let v = verify({ ...spec, gate }, rebuild);
+  let v = verify({ ...spec, gate }, rebuild, { notes: signNotes(args) });
   if (profile) {
     let rebuildProfile = null;
     if (args['rebuild-target']) {
@@ -388,7 +402,8 @@ function cmdHelp() {
   say('  rea <target> [--name slug] [--deep]    static read: format, symbols, strings, evidence ids');
   say('  spec <slug> [--request text] [--gate N]  capabilities + obligations + rebuild request');
   say('  craft <slug> [--run]                   hand the request to craft-anything (dry run by default)');
-  say('  verify <slug> --rebuild <dir> [--gate N]  score the rebuild, write gaps');
+  say('  verify <slug> --rebuild <dir> [--gate N] [--sign id=text]  score the rebuild, write gaps');
+  say('      --sign ob-behaviour="ran both, X differs"   sign one manual obligation (repeatable)');
   say('  gaps <slug> [--apply]                  show the fix plan, optionally write it into the spec');
   say('  report <slug> [--html]                 report.md + report.json (+ report.html)');
   say('  prove <slug>                           recompute the evidence chain');

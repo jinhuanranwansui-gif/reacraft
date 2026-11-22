@@ -91,7 +91,7 @@ function runObligation(o, ctx) {
   return { status: 'pending', note: 'unknown acceptance type ' + check.type, acceptance: 'manual' };
 }
 
-export function verify(spec, rebuildDir, { rebuildProfile = null } = {}) {
+export function verify(spec, rebuildDir, { rebuildProfile = null, notes = {} } = {}) {
   const files = collectSources(rebuildDir).map((f) => ({ ...f }));
   const c = corpus(files);
   const ctx = { rebuildDir, files, identifiers: c.identifiers };
@@ -99,6 +99,15 @@ export function verify(spec, rebuildDir, { rebuildProfile = null } = {}) {
   const results = [];
   for (const o of spec.obligations || spec.must_have || []) {
     const outcome = runObligation(o, ctx);
+    // A manual obligation can be signed: the signer's sentence becomes the evidence, and the
+    // item counts as passed from then on. Without this a spec never leaves `pending`, and a
+    // number that can never reach the gate teaches people to ignore the gate.
+    const signed = notes[o.id];
+    if (outcome.status === 'pending' && outcome.acceptance === 'manual' && typeof signed === 'string' && signed.trim()) {
+      outcome.status = 'pass';
+      outcome.signed = true;
+      outcome.note = 'signed: ' + signed.trim().slice(0, 200);
+    }
     results.push({
       id: o.id,
       item: o.item,

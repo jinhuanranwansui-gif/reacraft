@@ -27,6 +27,13 @@ The release that turns two separate tools into one rail: read → contract → r
 - **DSH plugin** — 7 tools on `ctx.tools` (`reacraft_probe/read/spec/verify/report/prove/status`),
   no MCP bridge and no external runtime; ships `skill/rea-craft/SKILL.md`.
 - **`selftest`** — one command that runs read → spec → verify → gaps → ledger tamper check.
+- **Signed manual obligations / 人工项可签名** — `verify --sign ob-behaviour="ran both, X differs"`
+  (or `sign: {…}` in the DSH tool) turns a manual obligation into a pass and keeps the sentence as
+  its evidence. An automatic obligation cannot be signed into a pass.
+  不然 spec 永远停在 pending，门槛就变成没人看的东西。
+- **Templated URLs are evidence, never requirements** — a URL containing `${…}`, `%s`, `#{` or a
+  backtick is kept in the profile's strings but never becomes a verbatim requirement; a rebuild can
+  never contain the original's template literal.
 - **CI** — 3 OS × 3 Node, syntax check, plugin-entry load, zero-dependency assertion.
 
 ### Changed / 变更
@@ -55,6 +62,27 @@ The release that turns two separate tools into one rail: read → contract → r
 - **Old v0.1 specs have no `obligations`**, which crashed `status`; the reader falls back.
 - **Ledger records from v0.1 have no hash** and broke the chain check; they are now `legacy`.
 - **`node --test test/`** is treated as a module by Node 22+, which failed the first CI run.
+
+### Verified against a real rebuild / 真实闭环
+
+`default_app.asar` (the Electron default app shipped inside DeepSeek Harness) was read, specced,
+rebuilt by craft-anything with a DeepSeek backend, and scored from outside:
+
+```
+score 100%  gate=80% → pass
+pass=5 partial=0 fail=0 pending=1
+similar 67% (medium confidence)
+  pass  ob-endpoints       10/10 patterns found
+  pass  ob-electron-shape  signed: package.json main=main.js, preload.js present, …
+  pass  ob-cap-electron    4/4
+  pass  ob-cap-network     6/6
+  pass  ob-cap-crypto      2/2
+  pending ob-behaviour     needs a human note
+```
+
+The first pass scored 96% with one `partial`: the missing pattern was
+`https://nodejs.org/docs/v${process.versions.node}/api` — a template literal from the original that
+no rebuild could contain verbatim. That is the bug the templated-URL rule fixes.
 
 ### Removed / 移除
 

@@ -164,6 +164,10 @@ export async function apply(ctx, rawConfig) {
       rebuildDir: { type: 'string', required: true, description: 'Folder holding the rebuild source tree.' },
       rebuildTarget: { type: 'string', description: 'Optional built binary of the rebuild; its imports and exports join the symbol comparison.' },
       gate: { type: 'integer', description: 'Pass mark in percent (default: the gate stored in the spec).' },
+      sign: {
+        type: 'object',
+        description: 'Sign manual obligations: { "ob-behaviour": "ran both, X differs" }. A signed item counts as passed and the sentence is kept as its evidence.',
+      },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -177,7 +181,7 @@ export async function apply(ctx, rawConfig) {
       const gate = args?.gate !== undefined ? gateOf(args, config) : spec.gate;
       const profile = readJson(path.join(dir, 'profile.json'));
 
-      let v = verify({ ...spec, gate }, rebuild);
+      let v = verify({ ...spec, gate }, rebuild, { notes: args?.sign && typeof args.sign === 'object' ? args.sign : {} });
       if (profile) {
         let rebuildProfile = null;
         if (typeof args.rebuildTarget === 'string') {
