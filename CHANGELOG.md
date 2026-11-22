@@ -10,6 +10,39 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.16.0] — 2026-11-22
+
+The third rung: reading the code, not only the container.
+
+### Added / 新增
+
+- **`disasm` command and `src/core/disasm.mjs`** — function structure, pseudocode for one function,
+  and the call sites of a named import, through radare2.
+  第三条梯子：识别 → 读事实 → **读逻辑** → 运行 → 构造。这一步补的是"读逻辑"。
+- `--fn <name|addr>` prints radare2's own `pdc` output; `--calls <symbol>` prints every call site of
+  one import, which is the cheap way to answer "where does this touch the network".
+- Two facts worth having before anything else: how many functions carry a name (a stripped or packed
+  binary shows almost none), and which functions are largest.
+
+### The rule that keeps it honest
+
+**Without radare2 the command says so and nothing else changes.** A reader that needs an engine is
+not a reader you can count on, so the static floor never depends on this one. Two tests pin it: one
+skips on a machine that has radare2 and asserts the absent branch (which is what CI sees), the other
+is opt-in (`REACRAFT_DISASM_TEST=1`) because analysing a real binary takes minutes.
+
+### Verified / 实测
+
+```text
+C:\Windows\System32\notepad.exe
+functions 344  (named 4)
+note      4 of 344 functions carry a name
+   153848  bbs     3  fcn.140001c90
+    45183  bbs  1620  fcn.140013150
+```
+
+31 tests (2 skipped by design), 23 bench checks.
+
 ## [0.15.0] — 2026-11-22
 
 Detection becomes a registry, so a new format is a file rather than an edit to the core.

@@ -20,6 +20,7 @@ import { toSarif } from './core/sarif.mjs';
 import { capture, writeGolden, readGolden, compareGolden, goldenObligations, flatten, GOLDEN_SCHEMA } from './core/golden.mjs';
 import { writeDashboard } from './core/dashboard.mjs';
 import { buildMap, renderMap, recipeFor } from './core/map.mjs';
+import { r2Available, analyzeFunctions, decompileFunction, callersOf } from './core/disasm.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -474,6 +475,46 @@ function cmdMap(args) {
   return 0;
 }
 
+function cmdDisasm(args) {
+  const target = args._[1];
+  if (!target) fail('disasm needs a file: reacraft disasm <file> [--fn <name>]');
+  const file = path.resolve(target);
+  if (!fs.existsSync(file)) fail('no such file: ' + file);
+  if (!r2Available()) fail('radare2 is not installed; `reacraft probe` shows what is available');
+
+  if (typeof args.fn === 'string') {
+    const d = decompileFunction(file, args.fn, { timeout: Number(args.timeout) || 180000 });
+    if (!d.ok) fail('radare2 returned nothing for ' + args.fn + ': ' + (d.error || 'unknown'));
+    emit(args, { file, decompiled: d }, d.text + (d.truncated ? '\n… truncated' : ''));
+    return 0;
+  }
+
+  if (typeof args.calls === 'string') {
+    const c = callersOf(file, args.calls, { timeout: Number(args.timeout) || 240000 });
+    const lines = c.callers.length
+      ? c.callers.map((x) => '  ' + String(x.from).padEnd(12) + '  ' + x.opcode)
+      : ['  (no call site found for sym.imp.' + args.calls + ')'];
+    emit(args, { file, callers: c }, 'callers of ' + args.calls + ':\n' + lines.join('\n'));
+    return 0;
+  }
+
+  const a = analyzeFunctions(file, { timeout: Number(args.timeout) || 240000 });
+  const lines = [
+    'file      ' + file,
+    'engine    radare2',
+    'functions ' + a.count + (a.namedCount !== undefined ? '  (named ' + a.namedCount + ')' : ''),
+  ];
+  if (a.error) lines.push('error     ' + a.error);
+  if (a.note) lines.push('note      ' + a.note);
+  if (a.top.length) {
+    lines.push('');
+    lines.push('largest functions:');
+    for (const f of a.top) lines.push('  ' + String(f.size).padStart(7) + '  bbs ' + String(f.bbs).padStart(5) + '  ' + f.name);
+  }
+  emit(args, { file, disasm: a }, lines.join('\n'));
+  return a.count ? 0 : 2;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -571,7 +612,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
-  dashboard: cmdDashboard, map: cmdMap,
+  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

@@ -17,9 +17,9 @@ const RECIPES = path.join(here, '..', '..', 'knowledge', 'recipes.json');
 // adding a recipe for a domain that is listed as `none` is a signal to write the analyzer, not to
 // quietly upgrade the label.
 const DEPTH = {
-  'pe-native': { depth: 'full', by: 'src/core/target.mjs (parsePE), profile.mjs, drm.mjs, decode.mjs' },
+  'pe-native': { depth: 'full', by: 'parsePE + profile + drm + decode; disasm.mjs adds structure and pseudocode via radare2' },
   'pe-managed': { depth: 'partial', by: 'CLR header detected; IL is not decompiled — pair with ilspycmd' },
-  elf: { depth: 'full', by: 'src/core/target.mjs (parseELF), symbols, NEEDED' },
+  elf: { depth: 'full', by: 'parseELF, symbols, NEEDED; disasm.mjs adds structure and pseudocode' },
   macho: { depth: 'partial', by: 'slices and load commands; entitlements not read' },
   android: { depth: 'partial', by: 'classes from DEX names; manifest is not parsed — pair with apktool' },
   java: { depth: 'partial', by: 'class names and package layout; bytecode is not read' },

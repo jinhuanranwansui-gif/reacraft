@@ -332,6 +332,28 @@ golden   83%   leaves=6 matched=5 changed=1 missing=0   exit 0
 它不是 GameFrame 那套 Unicorn 台架——比的是打印出来的输出，不是模拟出来的内存。但它把
 「字符串看着像」换成「重建打印了 4，原版打印的是 3」，那是另一种强度的主张。
 
+## 读代码，不只是读容器
+
+```bash
+node src/cli.mjs disasm sample.exe                    # 函数结构
+node src/cli.mjs disasm sample.exe --fn 0x14000da7c   # 某个函数的伪代码
+node src/cli.mjs disasm sample.exe --calls CreateFileW # 这个导入到底在哪被调用
+```
+
+```text
+functions 344  (named 4)
+note      4 of 344 functions carry a name
+largest functions:
+   153848  bbs     3  fcn.140001c90
+    45183  bbs  1620  fcn.140013150
+```
+
+要 radare2。**没装的话这条命令会直说，其它一切不变**——一个必须靠引擎才能工作的读取器，不是能指望的读取器，
+所以静态地板永远不依赖它。
+
+`--fn` 打的是 radare2 自己的伪 C：难看，但那是真的控制流，不是猜的。`--calls` 是回答
+「这个程序在哪碰网络/注册表/磁盘」最便宜的办法——一个导入，全部调用点。
+
 ## 覆盖什么，覆盖多深
 
 ```bash

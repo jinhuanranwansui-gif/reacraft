@@ -18,6 +18,7 @@ import { diceCoefficient } from './similarity.mjs';
 import { capture, compareGolden } from './golden.mjs';
 import { renderDashboard } from './dashboard.mjs';
 import { buildMap } from './map.mjs';
+import { r2Available, analyzeFunctions } from './disasm.mjs';
 import { buildGaps } from './gaps.mjs';
 import { decodeShares } from './decode.mjs';
 import { toSarif, SARIF_VERSION } from './sarif.mjs';
@@ -158,7 +159,11 @@ export function bench() {
     add('map-coverage', 'the map marks depth per domain and admits the gaps',
       mp.domains.length >= 10 && mp.counts.full > 0 && mp.note.includes('no reader'));
 
-    // 11. outputs a CI can consume
+    // 11. the optional disassembler never takes the floor away
+    add('disasm-optional', 'disassembly is optional: absent gives a clear answer, not a crash',
+      r2Available() ? true : analyzeFunctions('/nonexistent').available === false);
+
+    // 12. outputs a CI can consume
     const sarif = toSarif(spec, v1, { rebuildDir: rb, version: 'bench' });
     const sarifOk = sarif.version === SARIF_VERSION && sarif.runs[0].results.length > 0 && sarif.runs[0].tool.driver.rules.length > 0;
     add('sarif-shape', 'emits SARIF 2.1.0 with rules and results', sarifOk, sarif.runs[0].results.length + ' results');

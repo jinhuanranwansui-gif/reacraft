@@ -20,6 +20,7 @@ import { decodeFile } from '../src/core/decode.mjs';
 import { capture, compareGolden, flatten, goldenObligations } from '../src/core/golden.mjs';
 import { buildMap, recipeFor } from '../src/core/map.mjs';
 import { detect, listAnalyzers } from '../analyzers/index.mjs';
+import { r2Available, analyzeFunctions, decompileFunction } from '../src/core/disasm.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -532,6 +533,29 @@ test('the analyzer registry is the only place a container format is declared', (
   // Unrecognisable bytes are still labelled rather than thrown away.
   const junk = detect(Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 'x.bin');
   assert.ok(junk.kind && junk.analyzer);
+});
+
+test('the disassembler degrades to a clear answer when radare2 is absent', {
+  skip: r2Available() ? 'radare2 is installed here; the absent branch is covered on CI' : false,
+}, () => {
+  const a = analyzeFunctions('/nonexistent');
+  assert.equal(a.available, false);
+  assert.equal(a.count, 0);
+  assert.ok(a.note.includes('not installed'));
+  const d = decompileFunction('/nonexistent', 'main');
+  assert.equal(d.available, false);
+});
+
+// Analysing a real binary with radare2 takes minutes, so it is opt-in rather than part of the suite.
+// The contract that matters in CI is the one above: no radare2 means a clear answer, not a crash.
+test('the disassembler reads real code (opt-in: REACRAFT_DISASM_TEST=1)', {
+  skip: process.env.REACRAFT_DISASM_TEST === '1' && r2Available() ? false : 'set REACRAFT_DISASM_TEST=1 with radare2 installed',
+  timeout: 600000,
+}, () => {
+  const a = analyzeFunctions('C:\\Windows\\System32\\notepad.exe', { timeout: 300000, top: 5 });
+  assert.equal(a.available, true);
+  assert.ok(a.count > 100, 'expected a real function count, got ' + a.count);
+  assert.ok(a.top.length > 0 && a.top.every((f) => typeof f.size === 'number'));
 });
 
 test('the bench proves the whole claim end to end', () => {

@@ -392,6 +392,29 @@ It is not game-frame's Unicorn harness — it compares printed output, not emula
 replaces "the strings look right" with "the rebuild printed 4 where the original printed 3", and
 that is a different kind of claim.
 
+## Reading the code, not just the container
+
+```bash
+node src/cli.mjs disasm sample.exe                    # function structure
+node src/cli.mjs disasm sample.exe --fn 0x14000da7c   # pseudocode for one function
+node src/cli.mjs disasm sample.exe --calls CreateFileW # where an import is actually used
+```
+
+```text
+functions 344  (named 4)
+note      4 of 344 functions carry a name
+largest functions:
+   153848  bbs     3  fcn.140001c90
+    45183  bbs  1620  fcn.140013150
+```
+
+Needs radare2. **Without it the command says so and nothing else changes** — a reader that needs an
+engine is not a reader you can count on, so the static floor never depends on this.
+
+`--fn` prints radare2's own pseudo-C: ugly, but real control flow rather than a guess. `--calls` is
+the cheap way to answer "where does this program touch the network / the registry / the disk" — one
+import, all its call sites.
+
 ## What it covers, and how deep
 
 ```bash
