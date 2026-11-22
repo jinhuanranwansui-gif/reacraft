@@ -1,5 +1,7 @@
 # ReaCraft
 
+[English](README.md) · **中文** · [变更日志](CHANGELOG.md) · [合同与评分口径](docs/CONTRACT.zh.md)
+
 读目标 → 写合同 → 重建 → 打分 → 把差额变成下一步。
 
 ReaCraft 站在两个优秀工具的中间，做它们各自都不做的那一段：把静态读取的结果变成**自带验收方式**的义务，按义务给重建打分，再把每个失败翻译成下一轮指令。整条链路留下哈希链记录，事后可以逐条复算。
@@ -117,7 +119,9 @@ node src/cli.mjs prove sample
 | `src/cli.mjs` | 命令行 |
 | `dsh/host/index.js` | DSH 插件：`ctx.tools` 上 7 个工具 |
 | `skill/rea-craft/SKILL.md` | 给智能体看的操作手册 |
-| `docs/CONTRACT.md` | schema 与评分口径（要跟分数吵架就读这个） |
+| `docs/CONTRACT.md` | schema 与评分口径（英文） |
+| `docs/CONTRACT.zh.md` | 同上，中文——要跟分数吵架就读这个 |
+| `CHANGELOG.md` | 版本之间改了什么（中英对照） |
 
 ## 实测踩过的坑（都已修）
 

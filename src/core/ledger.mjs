@@ -66,8 +66,12 @@ export function lastHash(dir) {
 export function record(dir, kind, { input = [], output = [], note = null, extra = null } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const all = readRecords(dir);
+  // The sequence counts chained records only. Pre-chain records (no hash) stay in the file
+  // as history but never occupy a slot, so a project that predates the ledger does not
+  // start its chain at a gap.
+  const chained = all.filter((r) => r && !r.corrupt && r.hash !== undefined).length;
   const body = {
-    seq: all.filter((r) => r && !r.corrupt).length,
+    seq: chained,
     at: new Date().toISOString(),
     kind,
     prev: lastHash(dir),
@@ -114,8 +118,12 @@ export function prove(dir) {
 
   let prev = '';
   let seq = 0;
+  let legacy = 0;
   records.forEach((rec, index) => {
     if (!rec || rec.corrupt) { problems.push({ type: 'unparsable-line', line: rec && rec.line }); return; }
+    // Records written before the chain existed carry no hash. They are history, not
+    // evidence: counted and named, never treated as a broken link.
+    if (rec.hash === undefined) { legacy++; return; }
     if (rec.seq !== seq) problems.push({ type: 'sequence-gap', expected: seq, got: rec.seq });
     if ((rec.prev || '') !== prev) problems.push({ type: 'chain-break', at: rec.seq, expected: prev, got: rec.prev });
     const { hash, ...body } = rec;
@@ -146,6 +154,7 @@ export function prove(dir) {
     ok: problems.length === 0,
     problems,
     superseded,
+    legacy,
     provedAt: new Date().toISOString(),
   };
 }

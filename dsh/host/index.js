@@ -59,7 +59,10 @@ function tool(ctx, def) {
   });
 }
 
-export async function apply(ctx, config = {}) {
+export async function apply(ctx, rawConfig) {
+  // Cordis passes null when the patch row has no config; a default parameter only covers
+  // undefined, so normalise here and every tool can read config.* safely.
+  const config = rawConfig || {};
   tool(ctx, {
     name: 'reacraft_probe',
     description: 'Check the ReaCraft engines: this pipeline needs nothing, but radare2, ilspycmd, REA and craft-anything add depth. Reports what is installed, the project home, and the exact craft-anything rebuild command.',
@@ -278,11 +281,11 @@ export async function apply(ctx, config = {}) {
         rows.push({
           project: entry,
           kind: profile ? profile.kind : '-',
-          obligations: spec ? spec.obligations.length : '-',
+          obligations: spec ? (spec.obligations || spec.must_have || []).length : '-',
           score: v && v.score !== null && v.score !== undefined ? v.score + '%' : '-',
-          gate: v ? v.gateResult : '-',
+          gate: v ? (v.gateResult || 'unknown') : '-',
           gaps: g ? g.open : '-',
-          chain: p ? (p.ok ? 'ok' : 'broken') : '-',
+          chain: p ? (p.ok ? (p.records > (p.legacy || 0) ? 'ok' : 'legacy') : 'broken') : '-',
         });
       }
       if (!rows.length) return { ok: true, projects: [], text: 'no projects yet (' + home + ')' };

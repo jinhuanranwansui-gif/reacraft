@@ -1,5 +1,7 @@
 # ReaCraft
 
+**English** · [中文](README.zh.md) · [Changelog](CHANGELOG.md) · [Contract](docs/CONTRACT.md)
+
 Read a target, write a contract, rebuild it, score the rebuild, close the gap.
 
 ReaCraft sits between two excellent tools and does the thing neither of them does on its own:
@@ -144,6 +146,8 @@ report says so; the score is meant to be a floor to argue with, not a certificat
 | `src/cli.mjs` | the CLI |
 | `dsh/host/index.js` | the DSH plugin: 7 tools on `ctx.tools` |
 | `skill/rea-craft/SKILL.md` | the agent-facing playbook |
+| `docs/CONTRACT.md` · [`CONTRACT.zh.md`](docs/CONTRACT.zh.md) | schema shapes and the exact scoring rule |
+| `CHANGELOG.md` | what changed between versions |
 
 Design notes:
 

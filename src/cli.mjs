@@ -282,11 +282,11 @@ function cmdStatus(args) {
       project: name,
       kind: profile ? profile.kind : '-',
       caps: spec ? spec.capabilities.length : '-',
-      obligations: spec ? spec.obligations.length : '-',
-      score: v ? (v.score === null ? 'n/a' : v.score + '%') : '-',
-      gate: v ? v.gateResult : '-',
+      obligations: spec ? (spec.obligations || spec.must_have || []).length : '-',
+      score: v ? (v.score === null || v.score === undefined ? 'n/a' : v.score + '%') : '-',
+      gate: v ? (v.gateResult || 'unknown') : '-',
       openGaps: g ? g.open : '-',
-      chain: p ? (p.ok ? 'ok' : 'broken') : '-',
+      chain: p ? (p.ok ? (p.records > (p.legacy || 0) ? 'ok' : 'legacy') : 'broken') : '-',
     });
   }
   if (!rows.length) { emit(args, { projects: [] }, 'no projects yet'); return 0; }

@@ -3,6 +3,16 @@
   "version": "0.2.0",
   "description": "Read a target, write a verifiable spec, rebuild it, score the rebuild, close the gap. One rail, zero dependencies. Ships as a CLI and as a DeepSeek Harness plugin.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jinhuanranwansui-gif/reacraft.git"
+  },
+  "homepage": "https://github.com/jinhuanranwansui-gif/reacraft#readme",
+  "bugs": {
+    "url": "https://github.com/jinhuanranwansui-gif/reacraft/issues"
+  },
+  "author": "jinhuanranwansui-gif",
+  "icon": "./dsh/icon.svg",
   "main": "dsh/host/index.js",
   "bin": {
     "reacraft": "src/cli.mjs"
