@@ -34,9 +34,9 @@
 
 Read a target, write a contract, rebuild it, score the rebuild, close the gap.
 
-![ReaCraft: bench, decode and verify running on real output](docs/demo.gif)
+![ReaCraft: five rungs of reverse engineering](docs/promo.gif)
 
-*[demo.mp4](docs/demo.mp4) if the GIF is too small — every frame is real command output, not a mock-up.*
+*[promo.mp4](docs/promo.mp4) has the narration. Every frame is real command output, not a mock-up.*
 
 ReaCraft sits between two excellent tools and does the thing neither of them does on its own:
 it takes what a static read found, turns it into obligations that each carry their own

@@ -33,9 +33,9 @@
 
 读目标 → 写合同 → 重建 → 打分 → 把差额变成下一步。
 
-![ReaCraft：bench、decode、verify 的真实输出](docs/demo.gif)
+![ReaCraft：逆向的五格](docs/promo.gif)
 
-*GIF 太小就看 [demo.mp4](docs/demo.mp4)——每一帧都是真实命令输出，不是摆拍。*
+*[promo.mp4](docs/promo.mp4) 带旁白。每一帧都是真实命令输出，不是摆拍。*
 
 ReaCraft 站在两个优秀工具的中间，做它们各自都不做的那一段：把静态读取的结果变成**自带验收方式**的义务，按义务给重建打分，再把每个失败翻译成下一轮指令。整条链路留下哈希链记录，事后可以逐条复算。
 
