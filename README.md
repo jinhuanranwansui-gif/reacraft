@@ -173,6 +173,11 @@ node src/cli.mjs prove sample
 
 Exit codes are CI-friendly: `0` ok, `1` usage, `2` gate not met or chain broken.
 
+`dashboard` writes one self-contained HTML file — a score ring, every obligation with its status and
+note, the gap plan, and the evidence behind each capability. No assets, no network, opens from disk:
+
+![A reacraft dashboard](docs/dashboard.png)
+
 In DSH the same six steps are six tool calls: `reacraft_read`, `reacraft_spec`,
 `reacraft_verify`, `reacraft_prove`, `reacraft_report`, `reacraft_status`.
 
