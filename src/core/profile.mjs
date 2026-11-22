@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { readTarget, extractEndpoints } from './target.mjs';
 import { STRING_RULES, API_RULES, API_SETS, JAVA_RULES, apiHit } from './rules.mjs';
+import { assessShield, filterEndpoints } from './shield.mjs';
 
 export const PROFILE_SCHEMA = 'reacraft.profile/2';
 
@@ -199,6 +200,25 @@ export function buildProfile(file, { name = null } = {}) {
   };
   profile.stack = guessStack(profile);
   profile.unknowns = limits(profile);
+
+  // Does this target fight back? A shield adds bytes, decoys and masked literals; it does not
+  // change the container, so structure stays trustworthy while individual values may not.
+  const shield = assessShield(profile, t.text);
+  if (shield.detected) {
+    profile.shield = shield;
+    profile.endpoints = filterEndpoints(profile.endpoints, true);
+    if (profile.strings) profile.strings.urls = profile.endpoints;
+    profile.unknowns = profile.unknowns.filter((u) => u.id !== 'u-shield');
+    profile.unknowns.unshift({
+      id: 'u-shield',
+      question: 'this target carries a shield (' + shield.signals.map((s) => s.id).join(', ') + ')',
+      how_to_settle: shield.readable.maskedLiterals === 'none-detected'
+        ? 'decoys are marked and excluded; re-read any value you plan to rely on'
+        : 'masked literals cannot be recovered statically: run the program and hook the decoder, or evaluate the decoder offline',
+      severity: 'high',
+    });
+  }
+
   profile.evidence = buildEvidenceIndex(profile);
   return profile;
 }
@@ -217,7 +237,8 @@ export function buildEvidenceIndex(profile) {
 }
 
 export function pickEvidence(profile, rule, n = 6) {
-  return (profile.strings?.notable || []).filter((x) => x.rule === rule).slice(0, n);
+  // Decoys never become evidence a spec can quote.
+  return (profile.strings?.notable || []).filter((x) => x.rule === rule && !x.decoy).slice(0, n);
 }
 
 export { path };

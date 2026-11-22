@@ -503,10 +503,19 @@ export function extractEndpoints(strings) {
 
 // ---------------------------------------------------------------- top level
 
+const TEXT_KINDS = new Set(['javascript', 'html', 'json-data', 'script', 'data']);
+const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.html', '.htm', '.json', '.txt', '.md', '.py', '.rb', '.php', '.java', '.kt', '.cs', '.go', '.rs', '.c', '.h', '.cpp', '.sh', '.ps1']);
+
 export function readTarget(file, { name = null } = {}) {
   const st = fs.statSync(file);
   const buf = readAll(file);
   const det = detectKind(buf, file);
+  // A text copy is only kept for the shield assessment, and only when the file really is
+  // text: a 100 MiB binary is never turned into a string.
+  const asText = buf && st.size <= 4 * 1024 * 1024
+    && (TEXT_KINDS.has(det.kind) || TEXT_EXT.has(path.extname(file).toLowerCase()))
+    ? buf.toString('utf8')
+    : null;
   return {
     target: path.resolve(file),
     name: name || path.basename(file).replace(/[^\w.-]+/g, '_'),
@@ -522,6 +531,7 @@ export function readTarget(file, { name = null } = {}) {
     classes: det.classes || null,
     dexClasses: det.dexClasses || null,
     looksBundled: det.looksBundled || false,
+    text: asText,
     strings: buf ? extractStrings(buf) : [],
   };
 }

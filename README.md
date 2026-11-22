@@ -169,6 +169,33 @@ Design notes:
 - **Child processes write to temp files, not pipes** on Windows: the sandbox may refuse pipe
   capture while plain file descriptors always work.
 
+## Against a shield
+
+Tested against [bla-agents](https://github.com/qybaihe/bla) at `bankrupt` intensity (its public
+crackme v6). BLA's 24-vector matrix is aimed at REA's budgets; three of its four moves meet a
+different kind of reader here.
+
+| BLA move | what it does | effect on ReaCraft |
+|---|---|---|
+| **Exhaust** | sizes inputs past analyzer budgets (256 primitive candidates, 32 fuse sentinels, 16 MiB ASAR header) | **none** — there is no budget to trip; this reader parses from the outside and counts |
+| **Poison** | format-valid decoys: fake attestation manifests, honey source maps, repeated decoy routes | cannot mislead it (it does not infer), but **would pollute the evidence** — decoys are now marked and kept out of obligations |
+| **Entangle** | sibling SHA-256 self-seal | a static read is unaffected; running a patched build is refused |
+| **Masked literals** (`maximum`, `bankrupt`) | 3–256 char literals split into pieces and XOR-masked | **not recoverable statically** — reported as `present-but-unreadable`, not guessed |
+
+A real run on the public crackme v6 (`bankrupt`, `defenseScore: 99`):
+
+```
+detected true (high)   bla-interlock-corpus · bla-generated-symbols ×452 · decoy-narrative ×46 · masked-string-loop
+decoy fields           electron 2×4.5 · anti-analysis 2×4 · mobile 1×11 · licensing 3×2
+untrusted evidence     48 marked          endpoints 9 → 3 (six were bait)
+masked literals        present-but-unreadable
+```
+
+What this buys you is a **measured** answer instead of a hope: the container is still readable, the
+poison is labelled, and the part that a static reader genuinely loses is named in the report. It is
+not a claim to break the shield. To recover masked literals you have to run the program and hook the
+decoder, or lift the decoding function and evaluate it offline — both are dynamic work by design.
+
 ## Limits, stated up front
 
 - Static only. Nothing from the target is executed. Behaviour is a human obligation.

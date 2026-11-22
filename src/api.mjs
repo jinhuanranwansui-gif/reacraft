@@ -8,4 +8,5 @@ export { record, prove, fileEntry, sha256File, sha256Text, LEDGER } from './core
 export { writeReport, renderMarkdown, renderHtml, REPORT_SCHEMA } from './core/report.mjs';
 export { probeEngines, probePartners, which, ENGINE_SPECS } from './core/engines.mjs';
 export { readTarget, detectKind, extractStrings, extractEndpoints, parsePE, parseELF, parseMachO, parseAsar } from './core/target.mjs';
+export { assessShield, shieldSummary, decoyIds, looksGenerated, SHIELD_SCHEMA } from './core/shield.mjs';
 export { CAPABILITIES, STRING_RULES, API_SETS } from './core/rules.mjs';

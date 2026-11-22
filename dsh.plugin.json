@@ -1,6 +1,6 @@
 {
   "id": "reacraft",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "ReaCraft for DeepSeek Harness: read a target, write a contract with an acceptance test per obligation, score a rebuild, and turn every failure into the next instruction. Seven tools, no MCP bridge, no external runtime.",
   "engines": {
     "dsh": ">=0.2.1-rc.2"

@@ -181,7 +181,7 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
 
   // ---- literals that a rebuild can be checked against verbatim
   const literals = (profile.strings?.notable || [])
-    .filter((n) => ['registry', 'paths', 'task-scheduler', 'persistence', 'sql', 'embedded-url-api'].includes(n.rule))
+    .filter((n) => !n.decoy && ['registry', 'paths', 'task-scheduler', 'persistence', 'sql', 'embedded-url-api'].includes(n.rule))
     .slice(0, 16);
   if (literals.length) {
     addObligation({
@@ -236,6 +236,14 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
     size: profile.size,
     stack,
     gate,
+    shield: profile.shield ? {
+      detected: true,
+      confidence: profile.shield.confidence,
+      signals: profile.shield.signals.map((s) => s.id),
+      maskedLiterals: profile.shield.readable.maskedLiterals,
+      untrusted: profile.shield.unreadableCount,
+      advice: profile.shield.advice,
+    } : { detected: false },
     capabilities: caps,
     obligations,
     // Kept under the v1 name as well: existing reports and outside scripts read `must_have`.

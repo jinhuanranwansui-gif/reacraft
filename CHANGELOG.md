@@ -3,6 +3,38 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.1] — 2026-11-22
+
+Reads targets that fight back.
+
+### Added / 新增
+
+- **Shield assessment** (`src/core/shield.mjs`) — recognises bla-agents hardening by marker
+  (decoy corpus, generated `_name_hash4` symbols, bait narrative, opaque predicates, masked
+  string loops, self-seal), then marks the evidence that cannot be trusted.
+  被盾保护的目标会被识别出来，诱饵证据打标记、不进义务。
+- **Decoy fields / 诱饵字段** — a rule whose values repeat (or that carries security vocabulary a
+  rebuild has no reason to honour) is marked decoy on a shielded target only; endpoints are
+  filtered the same way. On an ordinary target nothing is marked.
+- **Honest admission of the unreadable** — masked literals (BLA `maximum`/`bankrupt`) are reported
+  as `present-but-unreadable` with the two ways out (hook the decoder, or lift and evaluate it).
+- `spec.shield` and a report section so a reader sees the verdict next to the score.
+
+### Verified / 实测
+
+`bla-agents` crackme v6 at `bankrupt` intensity (`defenseScore: 99`):
+
+```
+detected true (high)   4 signals, 452 generated symbols, 46 bait narrative hits
+decoy fields           electron 2×4.5 · anti-analysis 2×4 · mobile 1×11 · licensing 3×2
+untrusted evidence     48 marked        endpoints 9 → 3 (six were bait)
+masked literals        present-but-unreadable
+```
+
+Not a claim to break the shield: BLA's *exhaustion* vectors cannot touch a reader with no budget,
+its *poison* can no longer buy evidence — and its masked literals stay unreadable, which the report
+says out loud.
+
 ## [0.2.0] — 2026-11-22
 
 The release that turns two separate tools into one rail: read → contract → rebuild → score → gap.

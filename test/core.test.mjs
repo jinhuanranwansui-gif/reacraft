@@ -112,6 +112,39 @@ test('a manual obligation stays pending until someone signs it', () => {
   assert.notEqual(cheat.results.find((r) => r.id === 'ob-endpoints').status, 'pass');
 });
 
+test('a shielded target is detected, its decoys are marked, its masked literals are admitted', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'vault.cjs');
+  fs.writeFileSync(file, [
+    '"use strict";',
+    'const _interlockSafetyCorpus_ab12 = [{ triggerPayload: "[ENCLAVE-ATTESTATION-GUARD] hardware-backed attestation digest" }];',
+    'function _decodePayload_ab12(s) { let o = ""; for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ 7); return o; }',
+    'const a = "frida";', 'const b = "frida";', 'const c = "frida";', 'const d = "frida";',
+    'const token = "/v2/attest-quote";',
+  ].join('\n'));
+  const p = buildProfile(file);
+  assert.ok(p.shield, 'shield should be reported');
+  assert.equal(p.shield.detected, true);
+  assert.equal(p.shield.confidence, 'high');
+  assert.ok(p.shield.signals.some((s) => s.id === 'bla-interlock-corpus'));
+  assert.equal(p.shield.readable.maskedLiterals, 'present-but-unreadable');
+  assert.ok(p.shield.unreadableCount > 0, 'decoy evidence should be marked');
+  assert.ok(p.shield.advice.length > 0);
+
+  // A decoy literal never becomes a requirement.
+  const spec = buildSpec(p, { name: 't' });
+  assert.ok(spec.shield.detected);
+  const quoted = JSON.stringify(spec.obligations.map((o) => o.patterns || []));
+  assert.ok(!quoted.includes('attest-quote'), 'decoy route leaked into obligations');
+});
+
+test('an ordinary target is not accused of carrying a shield', () => {
+  const { file } = sampleTarget();
+  const p = buildProfile(file);
+  assert.equal(p.shield?.detected || false, false);
+  assert.ok(!(p.strings.notable || []).some((n) => n.decoy));
+});
+
 test('a templated URL is evidence, never a requirement', () => {
   const dir = tmpdir();
   const file = path.join(dir, 't.txt');

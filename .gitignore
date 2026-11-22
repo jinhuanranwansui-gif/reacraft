@@ -2,6 +2,7 @@
 projects/
 legacy/
 tmp/
+samples/
 engines.json
 
 node_modules/

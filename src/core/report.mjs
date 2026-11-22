@@ -28,6 +28,23 @@ export function renderMarkdown({ profile, spec, verification, gaps, proof = null
   L.push('| stack | ' + spec.stack.primary + (spec.stack.labels.length ? ' (' + spec.stack.labels.join(', ') + ')' : '') + ' |');
   L.push('');
 
+  if (spec.shield?.detected) {
+    const s = spec.shield;
+    L.push('## Shield');
+    L.push('');
+    L.push('This target carries a shield (' + (s.confidence || 'unknown') + ' confidence). The container is');
+    L.push('still readable; some of its *values* are not, and they are marked instead of trusted.');
+    L.push('');
+    L.push('| what | state |');
+    L.push('|---|---|');
+    L.push('| signals | ' + (s.signals || []).join(', ') + ' |');
+    L.push('| masked literals | ' + (s.maskedLiterals || 'unknown') + ' |');
+    L.push('| decoy evidence marked | ' + (s.untrusted ?? '-') + ' |');
+    L.push('');
+    for (const a of s.advice || []) L.push('- ' + a);
+    L.push('');
+  }
+
   L.push('## Verdict');
   L.push('');
   L.push('| metric | value |');

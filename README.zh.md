@@ -137,6 +137,31 @@ node src/cli.mjs prove sample
 - **重跑一个阶段会覆盖产物**，旧记录不该算篡改：最新一条记录对同名产物负责，更早的记为 `superseded`。
 - **Windows 下子进程输出别用管道**，sandbox 可能拒绝；写临时文件最稳。
 
+## 面对盾（BLA）
+
+拿 [bla-agents](https://github.com/qybaihe/bla) 的 `bankrupt` 强度（它公开的 crackme v6）实测过。
+BLA 的 24 向量矩阵是照着 REA 的预算打的；它有四招，其中三招碰到的是另一种读取器。
+
+| BLA 的招 | 它做什么 | 对 ReaCraft 的效果 |
+|---|---|---|
+| **Exhaust（耗尽）** | 把输入做到超出分析器预算（256 个候选、32 个 fuse sentinel、16 MiB ASAR 头） | **无效**——这里没有预算可撞，从外面解析、只数数 |
+| **Poison（投毒）** | 格式合法的诱饵：假认证清单、蜜罐 source map、重复的假路由 | 骗不了它（它不推理），但**会污染证据**——现在诱饵被标记并从义务里剔除 |
+| **Entangle（绑定）** | 兄弟文件 SHA-256 self-seal | 静态读取不受影响；改过的构建会被拒绝加载 |
+| **掩码字面量**（`maximum`/`bankrupt`） | 3–256 字符的字面量拆片 + XOR 掩码 | **静态拿不回**——如实报 `present-but-unreadable`，不猜 |
+
+真跑公开 crackme v6（`bankrupt`，`defenseScore: 99`）的结果：
+
+```
+detected true (high)   bla-interlock-corpus · bla-generated-symbols ×452 · decoy-narrative ×46 · masked-string-loop
+诱饵字段              electron 2×4.5 · anti-analysis 2×4 · mobile 1×11 · licensing 3×2
+不可信证据            标记 48 条          endpoints 9 → 3（六个是诱饵）
+掩码字面量            present-but-unreadable
+```
+
+它给你的不是"破了"的幻觉，而是**量出来的事实**：容器仍然可读，毒被标出来了，静态确实丢掉的那部分
+在报告里点名。要拿回掩码字面量，只有两条路——跑起来 hook 解码函数，或把解码函数连同参数抠出来离线求值，
+两者都是动态活。
+
 ## 局限（先说清楚）
 
 - 只做静态。不执行目标。行为是人来签的义务。
