@@ -464,6 +464,33 @@ test('a crashed golden run is recorded, not silently trusted', () => {
   assert.equal(g.ok, false);
 });
 
+test('four other constructions are recovered, not only split-share', () => {
+  const dir = tmpdir();
+  const fromList = 'FROMCHARCODE_SECRET_alpha';
+  const mapped = 'MAPPED_OFFSET_SECRET_beta';
+  const single = 'SINGLE_ARRAY_SECRET_gamma';
+
+  const listCodes = [...fromList].map((c) => c.charCodeAt(0)).join(', ');
+  const shiftedCodes = [...mapped].map((c) => c.charCodeAt(0) + 5).join(', ');
+  const coef = 0x2b;
+  const xorCodes = [...single].map((c, i) => c.charCodeAt(0) ^ ((i * coef) & 0xffff)).join(', ');
+
+  const file = path.join(dir, 'obf.cjs');
+  fs.writeFileSync(file, [
+    'const a = String.fromCharCode(' + listCodes + ');',
+    'const b = [' + shiftedCodes + '].map(c => String.fromCharCode(c - 5));',
+    'const c = [' + xorCodes + '];',
+    'const k = 1 * 0x2b;',
+  ].join('\n'));
+
+  const r = decodeFile(file);
+  const got = r.decoded.map((d) => d.value);
+  for (const p of [fromList, mapped, single]) {
+    assert.ok(got.includes(p), 'missing ' + p + ' in ' + JSON.stringify(got));
+  }
+  assert.ok(r.strategies.length >= 2, 'several strategies should have fired: ' + r.strategies.join(','));
+});
+
 test('the bench proves the whole claim end to end', () => {
   const r = bench();
   assert.equal(r.ok, true, r.checks.filter((c) => !c.ok).map((c) => c.id + ': ' + c.what).join('; '));

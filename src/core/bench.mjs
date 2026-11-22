@@ -126,6 +126,9 @@ export function bench() {
     const dec = decodeShares(s.text);
     add('decode-recover', 'recovers a masked literal without running the target', dec.decoded.some((d) => d.value === s.plain), dec.decoded.length + ' recovered');
     add('decode-no-exec', 'decoding executes nothing', dec.executed === false);
+    const listText = 'const s = String.fromCharCode(' + [...'BENCH_LIST_SECRET'].map((c) => c.charCodeAt(0)).join(', ') + ');';
+    add('decode-other-construction', 'a fromCharCode list is recovered too',
+      decodeShares(listText).decoded.some((d) => d.value === 'BENCH_LIST_SECRET'));
 
     // 7. strings that read as orders never reach a contract
     const bait = path.join(root, 'baited.cjs');
@@ -161,7 +164,7 @@ export function bench() {
       lines: [
         'reacraft bench — ' + passed + '/' + checks.length + ' in ' + (Date.now() - started) + 'ms',
         '',
-        ...checks.map((c) => (c.ok ? 'PASS ' : 'FAIL ') + c.id.padEnd(20) + c.what + (c.detail ? '   (' + c.detail + ')' : '')),
+        ...checks.map((c) => (c.ok ? 'PASS ' : 'FAIL ') + c.id.padEnd(26) + c.what + (c.detail ? '   (' + c.detail + ')' : '')),
       ],
     };
   } finally {

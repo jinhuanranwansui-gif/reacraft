@@ -10,6 +10,34 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.12.0] — 2026-11-22
+
+Five ways to hide a string, not one.
+
+### Added / 新增
+
+- **`decodeShares` is now five strategies, held to one standard.** Each candidate goes through the
+  same printable/looks-like-text gate, and a miss costs nothing but a ratio check.
+  五种构造一套评分，猜错只浪费一次比率计算。
+
+| strategy | what it reads |
+|---|---|
+| `split-share` | two equal-length integer arrays, XOR with a position term (bla-agents) |
+| `single-array-xor` | one array, XOR with a position term |
+| `fromcharcode-list` | `String.fromCharCode(104, 101, …)` — no key, obfuscation by inconvenience |
+| `mapped-offset` | `[104, 101, …].map(c => String.fromCharCode(c - 5))` |
+| `decimal-strings` | the same trick written as `"229,134,72…"` |
+
+- Every result now carries the `strategy` that produced it, and `result.strategies` lists which ones
+  fired — so a reader can tell "recovered by split-share" from "recovered by a list I could have
+  read by eye".
+- `bench` check `decode-other-construction`, and a test covering four of them at once.
+
+### Verified / 实测
+
+The real bla-agents sample still recovers exactly one value through `split-share` (`0x5d`), which is
+the point: adding strategies must not change what the right construction produces.
+
 ## [0.11.0] — 2026-11-22
 
 Ground truth, for the case where the original can actually run.
