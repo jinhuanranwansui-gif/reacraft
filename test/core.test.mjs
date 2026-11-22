@@ -345,6 +345,33 @@ test('a plain string is not accused of being an instruction', () => {
   assert.equal(p.guard.detected, false);
 });
 
+test('an image whose every section is random yields no invented obligations', () => {
+  const dir = tmpdir();
+  const f = path.join(dir, 'whole-encrypted.exe');
+  // Four sections of random bytes: no wrapper name, nothing structural left to trust.
+  fs.writeFileSync(f, makePE([
+    { name: '.text', data: crypto.randomBytes(16384) },
+    { name: '.rdata', data: crypto.randomBytes(8192) },
+    { name: '.pdata', data: crypto.randomBytes(8192) },
+    { name: '.data', data: crypto.randomBytes(8192) },
+  ]));
+  const p = buildProfile(f);
+  assert.equal(p.drm.imageEncrypted, true);
+  assert.equal(p.drm.readable.code, false);
+  assert.equal(p.strings.unreliable, true);
+  assert.ok(p.unknowns.some((u) => u.id === 'u-strings-unreliable'));
+
+  // The contract must be manual-only: no obligation may be derived from random bytes.
+  const spec = buildSpec(p, { name: 'opaque' });
+  assert.ok(spec.obligations.length > 0);
+  assert.equal(spec.obligations.filter((o) => o.acceptance !== 'manual').length, 0);
+  assert.ok(spec.obligations.some((o) => o.id === 'ob-readable-image'));
+  assert.ok(spec.capabilities.some((c) => c.id === 'opaque-image'));
+
+  // And nothing from the strings may reach the request text.
+  assert.ok(!/https?:\/\//.test(spec.request), 'no invented endpoint in the request');
+});
+
 test('the bench proves the whole claim end to end', () => {
   const r = bench();
   assert.equal(r.ok, true, r.checks.filter((c) => !c.ok).map((c) => c.id + ': ' + c.what).join('; '));

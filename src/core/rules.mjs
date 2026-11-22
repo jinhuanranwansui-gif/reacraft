@@ -107,4 +107,5 @@ export const CAPABILITIES = {
   wasm: { statement: 'runs WebAssembly', must: 'the rebuild exposes the same imports and exports', check: 'symbols' },
   'hidden-strings': { statement: 'carries strings that were masked to defeat a text scan', must: 'the rebuild keeps those exact values', check: 'endpoints' },
   'drm-protected': { statement: 'is wrapped by a commercial protection layer', must: 'the rebuild reproduces the behaviour that exists after the wrapper runs', check: 'manual' },
+  'opaque-image': { statement: 'ships as an image whose bytes are encrypted', must: 'a readable image exists before any behaviour is claimed', check: 'manual' },
 };

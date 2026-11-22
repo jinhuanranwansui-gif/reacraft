@@ -285,6 +285,36 @@ Detectors are structural: `.bind`/`.steam`, `UPX0`/`UPX1`, `.vmp*`, `.themida`, 
 entropy threshold, and the entry-point location. No product string is trusted on its own, and a
 plain binary is not accused of carrying a wrapper (there is a test for that too).
 
+### When the whole image is encrypted
+
+A second example from the same library, and a different failure mode.
+`WardogsClient-Win64-Shipping.exe` (228,536,216 bytes) has **no wrapper section**, an entry point
+inside `.text`, and still:
+
+```text
+.text   H=8.00    .rdata H=7.99    .pdata H=8.00    .data H=8.00
+_RDATA  H=8.00    .rodata H=7.95   .msvcjmc H=7.96  CPADinfo H=7.95
+.rsrc   H=2.86    .reloc  H=5.32                      ← the only two left intact
+99.9% of raw bytes are random
+```
+
+That is not a wrapper. A wrapper keeps `.pdata` and the relocation table readable, because the
+loader needs them; when a compiler marker and an exception table are random too, the image itself was
+encrypted or replaced, and it is not runnable without an external decryptor.
+
+So the tool does the only honest thing:
+
+- `drm.imageEncrypted = true`, `readable.code = false`, and an `unknowns` entry says the file is not
+  a runnable image on its own;
+- the contract collapses to **four manual obligations**, the first being "a readable image exists
+  before any behaviour is claimed";
+- and it marks the 60,026 "strings" it extracted from those bytes as **unreliable in the same
+  profile** — random data contains printable runs by the thousand, and a score built on them would
+  be fiction.
+
+That last line is the point of the whole tool. A reader that keeps producing confident output after
+its input stops being readable is worse than one that says nothing.
+
 ## Instruction-like strings
 
 [arXiv 2605.30667](https://arxiv.org/abs/2605.30667) (May 2026) demonstrated the attack that

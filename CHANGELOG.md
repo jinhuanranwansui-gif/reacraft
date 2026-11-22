@@ -3,6 +3,36 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.7.0] — 2026-11-22
+
+Found by scanning a real machine: a failure mode where the right answer is to stop producing answers.
+
+### Added / 新增
+
+- **`drm.imageEncrypted`** — when several sections are random at once (including structural ones
+  like `.pdata` and a compiler marker), the image itself was encrypted or replaced, not wrapped.
+  A wrapper keeps the exception table and relocation table readable because the loader needs them.
+  整镜像加密与"有壳"分开判定。
+- **`strings.unreliable`** — a fully encrypted image yields tens of thousands of accidental printable
+  runs. The profile marks them unreliable, and the spec step refuses to build anything on them.
+- **`ob-readable-image`** — the contract for such a target collapses to manual obligations, starting
+  with "a readable image exists before any behaviour is claimed".
+- `bench` and tests cover both: a wrapper with a readable code section, and an image with every
+  section random.
+
+### Verified / 实测
+
+`WardogsClient-Win64-Shipping.exe` (228,536,216 bytes) in a real Steam library: no wrapper section,
+entry inside `.text`, `.pdata` and `.msvcjmc` at entropy 8.0, `.rsrc` at 2.86 and `.reloc` at 5.32 —
+**99.9% of raw bytes random**. Reported as `imageEncrypted`, `readable.code=false`, 2 capabilities,
+4 manual obligations, and 60,026 extracted strings marked unreliable in the same profile.
+
+### Changed / 变更
+
+- `drm.readable.code` is false for an encrypted image as well as for an encrypted code section.
+- README documents both cases side by side (a SteamStub build whose code is readable, and an image
+  that is not readable at all).
+
 ## [0.6.0] — 2026-11-22
 
 Found by reading instead of writing: a published attack on this exact kind of tool, and a project

@@ -106,32 +106,54 @@ export function detectDrm(profile) {
   const encryptedSections = sections.filter((s) => s.rawSize > 4096 && s.entropy >= ENCRYPTED).map((s) => s.name);
   if (codeEncrypted) evidence.push('code-encrypted:.text H=' + text.entropy);
 
+  // A wrapper encrypts the code and leaves the headers, the resource tree and the relocation table
+  // readable. When *several* sections are random at once — including small ones that are pure
+  // structure, like `.pdata` or a compiler marker — the image as a whole was replaced or encrypted,
+  // and no single-section story explains it. Reported as its own state rather than as "plain".
+  const encryptedBytes = sections
+    .filter((s) => s.rawSize > 4096 && s.entropy >= ENCRYPTED)
+    .reduce((a, s) => a + s.rawSize, 0);
+  const totalBytes = sections.reduce((a, s) => a + s.rawSize, 0) || 1;
+  const imageShare = encryptedBytes / totalBytes;
+  const imageEncrypted = encryptedSections.length >= 3 || imageShare > 0.5;
+  if (imageEncrypted) {
+    evidence.push(
+      'image-encrypted:' + encryptedSections.length + ' sections random (' + Math.round(imageShare * 100) + '% of raw bytes)'
+    );
+  }
+
   return {
     schema: DRM_SCHEMA,
-    detected: matched.length > 0 || entryOutsideText || codeEncrypted,
+    detected: matched.length > 0 || entryOutsideText || codeEncrypted || imageEncrypted,
     products: matched,
     evidence,
     entryOutsideCode: entryOutsideText,
     codeEncrypted,
     encryptedSections,
+    // The image is not a normal build at all: several structural sections are random.
+    imageEncrypted,
+    imageShare: Number(imageShare.toFixed(3)),
     readable: {
       container: true,
       imports: imports.length > 0,
       strings: (profile.strings?.total || 0) > 0,
       // The honest line: a wrapper does not hide the headers, it hides the code.
-      code: !codeEncrypted,
+      code: !codeEncrypted && !imageEncrypted,
     },
-    advice: buildAdvice(matched, codeEncrypted, entryOutsideText),
+    advice: buildAdvice(matched, codeEncrypted, entryOutsideText, imageEncrypted, encryptedSections),
   };
 }
 
-function buildAdvice(matched, codeEncrypted, entryOutsideText) {
+function buildAdvice(matched, codeEncrypted, entryOutsideText, imageEncrypted = false, encryptedSections = []) {
   const out = [];
   const ids = matched.map((m) => m.id);
   if (ids.includes('steam-stub')) {
     out.push('SteamStub wrapper: the PE headers, imports and strings are readable, and the vendor section holds the encrypted launch stub');
   }
-  if (codeEncrypted) {
+  if (imageEncrypted) {
+    out.push('several sections are random at once (' + encryptedSections.join(', ') + '): this is not a wrapper, the image itself is encrypted or synthesised, and no single file can be read statically');
+    out.push('a normal build keeps .pdata and the relocation table readable even when .text is packed; when those are random too, the file is not a runnable image without an external loader');
+  } else if (codeEncrypted) {
     out.push('the code section is stored encrypted, so a static read of the program logic is not possible: it needs a runtime dump after the stub decrypts it, or a dedicated unpacker');
   } else if (ids.length) {
     out.push('the code section is NOT encrypted in this build: strings and imports are the real program, not stub noise');
@@ -139,7 +161,7 @@ function buildAdvice(matched, codeEncrypted, entryOutsideText) {
   if (entryOutsideText) {
     out.push('the entry point sits outside the code section, which is how a wrapper takes control before the program runs');
   }
-  if (!ids.length && !codeEncrypted) out.push('no commercial wrapper recognised');
+  if (!ids.length && !codeEncrypted && !imageEncrypted) out.push('no commercial wrapper recognised');
   out.push('a wrapper is not behaviour: obligations derived from this file describe the protected image, not what the program does after launch');
   return out;
 }

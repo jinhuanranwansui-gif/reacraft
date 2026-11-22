@@ -54,16 +54,36 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
   };
 
   // ---- capabilities from scored rules, strongest first
-  for (const [rule, score] of Object.entries(profile.ruleScores || {}).sort((a, b) => b[1] - a[1])) {
-    if (score < 2) continue;
-    const stringsHit = pickEvidence(profile, rule, 4);
-    const symbols = [...(profile.importHits || []), ...(profile.symbolHits || []), ...(profile.classHits || [])]
-      .filter((h) => h.rule === rule).slice(0, 6);
-    const evidence = [...stringsHit.map((h) => h.id), ...symbols.map((h) => h.id)];
-    addCap(rule, {
-      weight: Math.min(5, Math.max(1, Math.round(score / 2))),
-      evidence,
-      samples: stringsHit.map((h) => h.value),
+  // A fully encrypted image yields strings that are noise from random bytes. Building obligations
+  // on them would produce a confident score from evidence that does not exist, so the contract is
+  // reduced to structure and a human gate when the profile says so.
+  const unreliable = Boolean(profile.strings?.unreliable);
+  if (!unreliable) {
+    for (const [rule, score] of Object.entries(profile.ruleScores || {}).sort((a, b) => b[1] - a[1])) {
+      if (score < 2) continue;
+      const stringsHit = pickEvidence(profile, rule, 4);
+      const symbols = [...(profile.importHits || []), ...(profile.symbolHits || []), ...(profile.classHits || [])]
+        .filter((h) => h.rule === rule).slice(0, 6);
+      const evidence = [...stringsHit.map((h) => h.id), ...symbols.map((h) => h.id)];
+      addCap(rule, {
+        weight: Math.min(5, Math.max(1, Math.round(score / 2))),
+        evidence,
+        samples: stringsHit.map((h) => h.value),
+      });
+    }
+  } else {
+    addCap('opaque-image', {
+      weight: 5,
+      statement: 'ships as an image whose bytes are encrypted, so no behaviour can be derived from it',
+      evidence: [],
+      samples: [],
+    });
+    addObligation({
+      id: 'ob-readable-image',
+      item: 'a readable image exists (decrypted build, loader output, or runtime dump) before any behaviour is claimed',
+      acceptance: 'manual',
+      weight: 5,
+      why: 'none of the bytes this read saw are program text: a contract written from them would be fiction',
     });
   }
 
@@ -236,10 +256,13 @@ export function buildSpec(profile, { name = null, request = null, gate = 80 } = 
   // ---- a commercial wrapper is packaging, not behaviour, and must not become requirements
   if (profile.drm?.detected) {
     const products = profile.drm.products.map((p) => p.id);
+    const wrappedBy = products.length ? products.join(', ') : 'an unidentified layer';
     addCap('drm-protected', {
       weight: 3,
-      statement: 'is wrapped by ' + products.join(', ')
-        + (profile.drm.codeEncrypted ? ' with an encrypted code section' : ' (code section readable)'),
+      statement: (products.length ? 'is wrapped by ' + wrappedBy : 'chains an unidentified protection layer')
+        + (profile.drm.imageEncrypted
+          ? ' and the image itself is encrypted'
+          : profile.drm.codeEncrypted ? ' with an encrypted code section' : ' (code section readable)'),
       evidence: [...(profile.drm.evidence || [])].slice(0, 4),
       samples: [],
     });

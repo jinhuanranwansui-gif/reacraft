@@ -209,17 +209,30 @@ export function buildProfile(file, { name = null } = {}) {
     const drm = detectDrm(profile);
     // Always present on a PE, so a caller can ask "was a wrapper found?" without a null check.
     profile.drm = drm;
-    if (drm.detected) {
-      profile.drm = drm;
+    if (drm.detected) {      profile.drm = drm;
       profile.unknowns.unshift({
         id: 'u-drm',
         question: 'this image carries a commercial wrapper (' + drm.products.map((p) => p.id).join(', ') + ')'
-          + (drm.codeEncrypted ? ' and its code section is encrypted' : ''),
-        how_to_settle: drm.codeEncrypted
-          ? 'a static read cannot see the protected code: dump the image after the stub decrypts it, then read that'
-          : 'the code section is readable in this build; treat the wrapper section as packaging, not behaviour',
-        severity: drm.codeEncrypted ? 'high' : 'medium',
+          + (drm.imageEncrypted ? ' and most of its sections are random, so the image itself is encrypted or synthesised' : drm.codeEncrypted ? ' and its code section is encrypted' : ''),
+        how_to_settle: drm.imageEncrypted
+          ? 'this file is not a runnable image on its own: find the loader that decrypts it, or obtain a readable build'
+          : drm.codeEncrypted
+            ? 'a static read cannot see the protected code: dump the image after the stub decrypts it, then read that'
+            : 'the code section is readable in this build; treat the wrapper section as packaging, not behaviour',
+        severity: drm.imageEncrypted || drm.codeEncrypted ? 'high' : 'medium',
       });
+      // Random bytes contain accidental printable runs by the thousand. Those "strings" are noise,
+      // and building a contract on them would be the worst possible failure: a confident score from
+      // data that never existed. Say so and let the spec step skip them.
+      if (drm.imageEncrypted) {
+        profile.strings.unreliable = true;
+        profile.unknowns.unshift({
+          id: 'u-strings-unreliable',
+          question: 'the ' + profile.strings.total + ' strings below were extracted from encrypted bytes and are not evidence',
+          how_to_settle: 'ignore every string-derived capability for this target; a readable image or a runtime dump is needed first',
+          severity: 'high',
+        });
+      }
     }
   }
 
