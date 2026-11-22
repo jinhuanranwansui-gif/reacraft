@@ -105,10 +105,19 @@ export function renderMarkdown({ profile, spec, verification, gaps, proof = null
   if (sim) {
     L.push('## Set coverage');
     L.push('');
-    L.push('| category | required | present | ratio | missing (first few) |');
-    L.push('|---|---|---|---|---|');
+    L.push('`ratio` is strict presence. `weighted` gives a near miss its similarity instead of zero,');
+    L.push('so "one character off" and "not there at all" stop looking the same.');
+    L.push('');
+    L.push('| category | required | present | ratio | weighted | closest miss |');
+    L.push('|---|---|---|---|---|---|');
     for (const [name, d] of Object.entries(sim.coverage)) {
-      L.push('| ' + name + ' | ' + d.required + ' | ' + d.hit + ' | ' + (d.ratio === null ? '-' : Math.round(d.ratio * 100) + '%') + ' | ' + (d.missing.slice(0, 4).map((m) => '`' + oneLine(m) + '`').join(' ') || '-') + ' |');
+      const near = d.near && d.near.length
+        ? '`' + oneLine(d.near[0].closest) + '` (' + d.near[0].similarity + ')'
+        : (d.missing.slice(0, 2).map((m) => '`' + oneLine(m) + '`').join(' ') || '-');
+      L.push('| ' + name + ' | ' + d.required + ' | ' + d.hit + ' | '
+        + (d.ratio === null ? '-' : Math.round(d.ratio * 100) + '%') + ' | '
+        + (d.weightedRatio === null || d.weightedRatio === undefined ? '-' : Math.round(d.weightedRatio * 100) + '%') + ' | '
+        + near + ' |');
     }
     L.push('');
     for (const c of sim.caveats) L.push('- ' + c);

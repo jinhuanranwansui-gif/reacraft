@@ -3,6 +3,34 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/).
 
+## [0.10.0] — 2026-11-22
+
+Coverage learns the difference between "wrong" and "nearly right".
+
+### Added / 新增
+
+- **`coverageWithDistance`** — each category now reports `weightedRatio` beside the strict `ratio`,
+  and `near` entries naming the closest thing the rebuild actually has. A hit is 1, a near miss
+  earns its similarity, a stranger is 0.
+  覆盖度从"有没有"升级成"差多少"；严格 ratio 保留，另给加权值。
+- **`diceCoefficient` / `nearest`** — bigram Dice (the pg_trgm metric: O(n), good on short literals)
+  instead of edit distance, with a candidate cap so a thousand-literal rebuild stays fast.
+- The report's coverage table gains a `weighted` column and a `closest miss` column, so a reader can
+  see "one character off" without opening the JSON.
+- `bench` check `similarity-distance`: a one-character difference must keep most of its credit and a
+  different host must not.
+
+### Verified / 实测
+
+```text
+required  https://api.example.test/v1/session
+rebuild   https://api.example.test/v1/sessi0n
+ratio 0    weightedRatio 0.94    near: 0.94
+```
+
+The strict ratio stays 0 on purpose. `weightedRatio` is a diagnostic, never a score: a score that
+counts almost-matches would flatter every rebuild.
+
 ## [0.9.0] — 2026-11-22
 
 The injection detector was tested against its own evasions, and lost 24 times out of 120.

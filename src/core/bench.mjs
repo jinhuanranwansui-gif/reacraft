@@ -14,6 +14,7 @@ import path from 'node:path';
 import { buildProfile } from './profile.mjs';
 import { buildSpec } from './spec.mjs';
 import { verify, attachSimilarity } from './verify.mjs';
+import { diceCoefficient } from './similarity.mjs';
 import { buildGaps } from './gaps.mjs';
 import { decodeShares } from './decode.mjs';
 import { toSarif, SARIF_VERSION } from './sarif.mjs';
@@ -94,6 +95,11 @@ export function bench() {
     add('verify-partial', 'a partial rebuild scores below the gate', v1.score !== null && v1.score < 100, 'score=' + v1.score);
     add('verify-improves', 'a complete rebuild scores higher', v2.score > v1.score, v1.score + ' → ' + v2.score);
     add('verify-similarity', 'set coverage is reported separately', v2.similarity && typeof v2.similarity.score === 'number', 'similarity=' + (v2.similarity && v2.similarity.score));
+    const nearUrl = diceCoefficient('https://api.example.test/v1/session', 'https://api.example.test/v1/sessi0n');
+    const farUrl = diceCoefficient('https://api.example.test/v1/session', 'https://other.example.test/v9/admin');
+    add('similarity-distance', 'one character off keeps most of its credit',
+      nearUrl > 0.9 && farUrl < 0.7,
+      'close=' + nearUrl.toFixed(2) + ' far=' + farUrl.toFixed(2));
 
     // 4. gap → instruction
     const gaps = buildGaps(spec, v1);
@@ -146,7 +152,7 @@ export function bench() {
       lines: [
         'reacraft bench — ' + passed + '/' + checks.length + ' in ' + (Date.now() - started) + 'ms',
         '',
-        ...checks.map((c) => (c.ok ? 'PASS ' : 'FAIL ') + c.id.padEnd(18) + c.what + (c.detail ? '   (' + c.detail + ')' : '')),
+        ...checks.map((c) => (c.ok ? 'PASS ' : 'FAIL ') + c.id.padEnd(20) + c.what + (c.detail ? '   (' + c.detail + ')' : '')),
       ],
     };
   } finally {

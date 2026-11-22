@@ -104,6 +104,73 @@ export function coverage(required, actual) {
   return { ratio: hit / required.size, hit, total: required.size, missing };
 }
 
+// ---------------------------------------------------------------- distance
+
+// Two bigram sets are enough to say "one character off" from "a different string", and they cost
+// O(n) instead of the O(n*m) of Levenshtein. This is the metric pg_trgm uses, and it behaves well
+// on the short literals this tool compares.
+export function diceCoefficient(a, b) {
+  const x = String(a).toLowerCase();
+  const y = String(b).toLowerCase();
+  if (x === y) return 1;
+  if (x.length < 2 || y.length < 2) return 0;
+  const grams = (s) => {
+    const m = new Map();
+    for (let i = 0; i < s.length - 1; i++) {
+      const k = s.slice(i, i + 2);
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  };
+  const A = grams(x);
+  const B = grams(y);
+  let inter = 0;
+  for (const [k, n] of A) {
+    const m = B.get(k);
+    if (m) inter += Math.min(n, m);
+  }
+  const total = x.length - 1 + (y.length - 1);
+  return total > 0 ? (2 * inter) / total : 0;
+}
+
+// The closest candidate, if it is close enough to be worth naming.
+export function nearest(value, candidates, { min = 0.45, limit = 800 } = {}) {
+  const v = String(value);
+  let best = null;
+  let seen = 0;
+  for (const c of candidates) {
+    if (++seen > limit) break;
+    const s = diceCoefficient(v, c);
+    if (s >= min && (!best || s > best.similarity)) best = { value: String(c), similarity: Number(s.toFixed(3)) };
+  }
+  return best;
+}
+
+// Coverage that separates "absent" from "almost there": a hit is 1, a near miss earns its
+// similarity, a stranger is 0. The strict ratio is kept beside it, so a score can still be quoted
+// without the partial credit.
+export function coverageWithDistance(required, actual, { min = 0.45 } = {}) {
+  const base = coverage(required, actual);
+  if (base.ratio === null || !base.missing.length) {
+    return { ...base, near: [], weightedRatio: base.ratio, meanMissSimilarity: null };
+  }
+  const pool = [...actual];
+  const near = [];
+  for (const m of base.missing) {
+    const n = nearest(m, pool, { min });
+    if (n) near.push({ value: m, closest: n.value, similarity: n.similarity });
+  }
+  const credit = near.reduce((a, n) => a + n.similarity, 0);
+  const weightedRatio = (base.hit + credit) / base.total;
+  const meanMissSimilarity = near.length ? near.reduce((a, n) => a + n.similarity, 0) / near.length : 0;
+  return {
+    ...base,
+    near,
+    weightedRatio: Number(weightedRatio.toFixed(3)),
+    meanMissSimilarity: Number(meanMissSimilarity.toFixed(3)),
+  };
+}
+
 // 64-bit FNV-1a over a seed prefix: good enough for a MinHash estimate, no dependency.
 export function fnv(str, seed = 0) {
   let h = 0xcbf29ce484222325n ^ BigInt(seed);
@@ -196,10 +263,10 @@ export function compare(profile, rebuildDir, { rebuildProfile = null, spec = nul
 
   // Endpoints and literals match case-insensitively: the same key path written with
   // different capitalisation is the same key as far as this check goes.
-  const endpoints = coverage(lower(req.endpoints), lower(actualUrls));
-  const literals = coverage(lower(req.literals), lower(actualLiterals));
-  const symbols = coverage(req.symbols, actualSymbols);
-  const structure = coverage(req.structure, actualStructure);
+  const endpoints = coverageWithDistance(lower(req.endpoints), lower(actualUrls));
+  const literals = coverageWithDistance(lower(req.literals), lower(actualLiterals));
+  const symbols = coverageWithDistance(req.symbols, actualSymbols);
+  const structure = coverageWithDistance(req.structure, actualStructure);
 
   const parts = [
     ['endpoints', endpoints],
@@ -216,6 +283,10 @@ export function compare(profile, rebuildDir, { rebuildProfile = null, spec = nul
       required: cov.total,
       hit: cov.hit,
       ratio: cov.ratio,
+      // How far the misses landed: 0.72 means "the closest thing it has is 72% the same".
+      weightedRatio: cov.weightedRatio,
+      meanMissSimilarity: cov.meanMissSimilarity,
+      near: cov.near.slice(0, 8),
       missing: cov.missing.slice(0, 40),
     };
     if (cov.ratio === null) continue;

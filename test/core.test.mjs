@@ -400,6 +400,36 @@ test('a near miss is named, so the gap reads as a diagnosis and not a verdict', 
   assert.ok(gaps.gaps[0].ask.includes('near miss'), gaps.gaps[0].ask);
 });
 
+test('a near-identical literal is measured, not just marked missing', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'target.txt');
+  fs.writeFileSync(file, 'https://api.example.test/v1/session\nHKEY_CURRENT_USER\\Software\\Example\\Run\n');
+  const p = buildProfile(file);
+
+  // One character different in the route, and one registry path that shares a prefix.
+  const rb = path.join(dir, 'rb');
+  fs.mkdirSync(rb);
+  fs.writeFileSync(path.join(rb, 'a.js'), [
+    'const u = "https://api.example.test/v1/sessi0n";',
+    'const k = "HKEY_CURRENT_USER\\\\Software\\\\Example\\\\Start";',
+  ].join('\n'));
+
+  const sim = compare(p, rb);
+  const ep = sim.coverage.endpoints;
+  assert.equal(ep.hit, 0, 'strict coverage must stay 0');
+  assert.ok(ep.weightedRatio > 0.8, 'weighted ratio should credit the near miss: ' + ep.weightedRatio);
+  assert.ok(ep.near.length >= 1);
+  assert.ok(ep.near[0].similarity >= 0.9, 'one character off should score high: ' + JSON.stringify(ep.near[0]));
+  assert.ok(ep.meanMissSimilarity > 0.8);
+
+  // A completely unrelated value earns nothing.
+  fs.rmSync(rb, { recursive: true, force: true });
+  fs.mkdirSync(rb);
+  fs.writeFileSync(path.join(rb, 'a.js'), 'const x = 1;\n');
+  const sim2 = compare(p, rb);
+  assert.equal(sim2.coverage.endpoints.weightedRatio, 0);
+});
+
 test('the bench proves the whole claim end to end', () => {
   const r = bench();
   assert.equal(r.ok, true, r.checks.filter((c) => !c.ok).map((c) => c.id + ': ' + c.what).join('; '));
