@@ -1,0 +1,223 @@
+// Profile stage: everything the pipeline knows about a target, with an evidence id on
+// every claim. The ids are content-derived, so re-reading the same file reproduces the
+// same ids and a spec written last week still points at something you can check.
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { readTarget, extractEndpoints } from './target.mjs';
+import { STRING_RULES, API_RULES, API_SETS, JAVA_RULES, apiHit } from './rules.mjs';
+
+export const PROFILE_SCHEMA = 'reacraft.profile/2';
+
+export function evidenceId(kind, value) {
+  const h = crypto.createHash('sha256').update(kind + '\u0000' + String(value)).digest('hex').slice(0, 10);
+  return 'ev-' + kind + '-' + h;
+}
+
+// One rule per string, first match wins. Scoring the whole line instead makes a passing
+// mention of "license" look like a licence check.
+export function scoreStrings(strings) {
+  const notable = [];
+  const hits = [];
+  let budget = 4000;
+  for (const s of strings) {
+    if (budget <= 0) break;
+    for (const rule of STRING_RULES) {
+      const m = s.match(rule.re);
+      if (!m) continue;
+      budget--;
+      const value = m[0].slice(0, 200);
+      const id = evidenceId(rule.id, value);
+      if (notable.length < 600) {
+        notable.push({ rule: rule.id, value, id, context: s.length > 200 ? s.slice(0, 200) + '...' : s });
+      }
+      hits.push({ rule: rule.id, weight: rule.weight, id, sample: value.slice(0, 160) });
+      break;
+    }
+  }
+  return { hits, notable };
+}
+
+// ELF symbols carry a version suffix (socket@GLIBC_2.2.5) and Mach-O ones a leading
+// underscore; both are noise for capability matching.
+export function cleanSymbol(name) {
+  return String(name).replace(/@.*$/, '').replace(/^_+/, '');
+}
+
+export function scoreSymbols(names) {
+  const hits = [];
+  for (const raw of names || []) {
+    const name = cleanSymbol(raw);
+    for (const rule of API_RULES) {
+      if (apiHit(name, API_SETS[rule.id])) {
+        hits.push({ rule: rule.id, weight: rule.weight, api: name, id: evidenceId(rule.id, name) });
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+export function scoreImports(imports) {
+  const hits = [];
+  for (const imp of imports || []) {
+    for (const fn of imp.functions || []) {
+      const name = fn.name || ('#' + fn.ordinal);
+      for (const rule of API_RULES) {
+        if (apiHit(name, API_SETS[rule.id])) {
+          hits.push({ rule: rule.id, weight: rule.weight, api: imp.dll + '!' + name, id: evidenceId(rule.id, imp.dll + '!' + name) });
+          break;
+        }
+      }
+    }
+  }
+  return hits;
+}
+
+export function scoreJavaClasses(classes) {
+  const hits = [];
+  for (const c of classes || []) {
+    for (const rule of JAVA_RULES) {
+      if (rule.re.test(c)) {
+        hits.push({ rule: rule.id, weight: rule.weight, api: c, id: evidenceId('java-' + rule.id, c) });
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+export function guessStack(profile) {
+  const dlls = (profile.pe?.imports || []).map((i) => i.dll).join(' ');
+  const flat = [
+    ...(profile.strings?.notable || []).map((x) => x.value),
+    ...(profile.elf?.needed || []),
+    ...(profile.elf?.symbols || []).slice(0, 400),
+    dlls,
+  ].join(' ').toLowerCase();
+  // Electron is decided structurally, not by a string: craft-anything itself mentions
+  // Electron everywhere because it analyses Electron apps, and that is not evidence.
+  const strong = [];
+  const dllsLower = dlls.toLowerCase();
+  if (profile.kind === 'asar' || /chrome_\d+\.dll|libcef\.dll|node\.dll|electron\.exe/.test(dllsLower)) strong.push('electron');
+  if (profile.kind === 'apk' || profile.kind === 'dex-archive') strong.push('android');
+  const marks = [
+    ['flutter', /flutter|libapp\.so/],
+    ['qt', /qt5|qt6|qwindows\.dll|libqt/],
+    ['wpf', /presentationframework|wpfgfx/],
+    ['winforms', /system\.windows\.forms/],
+    ['dotnet', /mscorlib|system\.private\.corelib/],
+    ['vb6', /msvbvm\d+\.dll|vb6\.dll|visual basic runtime/i],
+    ['delphi', /borlndmm|rtl\d+\.bpl|embarcadero|delphi/i],
+    ['rust', /rust\b|core::panicking|rustc|\.rs:[0-9]/],
+    ['go', /go1\.\d+|golang|runtime\.goexit/],
+    ['java', /\.jar|openjdk|jvm|dalvik/],
+    ['python', /python3\d|pyinstaller|site-packages|__pycache__/],
+    ['node', /node_modules|require\.js|v8::/],
+  ];
+  const labels = [...new Set([...strong, ...marks.filter(([, re]) => re.test(flat)).map(([k]) => k)])];
+  return {
+    labels,
+    primary: labels[0] || (profile.kind.startsWith('pe') ? 'native-c' : profile.kind === 'elf' ? 'native-c' : 'unknown'),
+  };
+}
+
+// A short, honest statement of what this read could not cover.
+export function limits(profile) {
+  const out = [];
+  if (profile.kind === 'pe-native' && !(profile.pe?.imports || []).length) {
+    out.push({ id: 'u-imports', question: 'no import table was parsed (packed, stripped or non-PE)', how_to_settle: 'run with --deep or unpack the sample first', severity: 'medium' });
+  }
+  if (profile.kind === 'elf' && !(profile.elf?.symbols || []).length) {
+    out.push({ id: 'u-symbols', question: 'the ELF has no dynamic symbol table (stripped, static or packed)', how_to_settle: 'disassemble with a native engine, or treat symbol coverage as unavailable', severity: 'medium' });
+  }
+  if (profile.kind === 'apk' && !(profile.dexClasses || []).length) {
+    out.push({ id: 'u-dex', question: 'no class descriptors were recovered from the APK', how_to_settle: 'decode the dex with a dedicated tool, then re-run the spec stage on its class list', severity: 'medium' });
+  }
+  if (profile.kind === 'macho' && profile.macho?.fat) {
+    out.push({ id: 'u-fat', question: 'universal binary: only the container was identified', how_to_settle: 'split the slices and read each architecture', severity: 'low' });
+  }
+  if (profile.kind === 'large-file') {
+    out.push({ id: 'u-large', question: 'the file is too large to read in one pass', how_to_settle: 'read the first and last megabytes, or point the tool at an extracted part', severity: 'high' });
+  }
+  // A p-code VM keeps its own logic in bytecode: there is no import table to reason from,
+  // so a thin spec here is a property of the target, not of the reader.
+  if ((profile.stack?.labels || []).some((l) => l === 'vb6' || l === 'delphi')) {
+    out.push({
+      id: 'u-pcode',
+      question: 'the program logic lives in a p-code or VM runtime (' + (profile.stack.labels.join(', ')) + ')',
+      how_to_settle: 'read the bytecode with a dedicated decompiler, or record its behaviour and attach the trace as evidence',
+      severity: 'high',
+    });
+  }
+  out.push({ id: 'u-dynamic', question: 'run-time behaviour (what it does when started) is not observed here', how_to_settle: 'record a bounded session with an engine, then attach the trace as extra evidence', severity: 'low' });
+  return out;
+}
+
+export function buildProfile(file, { name = null } = {}) {
+  const t = readTarget(file, { name });
+  const strings = t.strings;
+  const sScore = scoreStrings(strings);
+  const peImports = scoreImports(t.pe?.imports || []);
+  const elfSymbols = scoreSymbols(t.elf?.symbols || []);
+  const javaClasses = scoreJavaClasses(t.classes || t.dexClasses || []);
+  const endpoints = extractEndpoints(strings);
+
+  const ruleScores = {};
+  const sum = (list) => { for (const h of list) ruleScores[h.rule] = (ruleScores[h.rule] || 0) + h.weight; };
+  sum(sScore.hits);
+  sum(peImports);
+  sum(elfSymbols);
+  sum(javaClasses);
+
+  const profile = {
+    schema: PROFILE_SCHEMA,
+    target: t.target,
+    name: t.name,
+    size: t.size,
+    sha256: t.sha256,
+    kind: t.kind,
+    ext: t.ext,
+    pe: t.pe,
+    elf: t.elf,
+    macho: t.macho,
+    asar: t.asar,
+    zipEntries: t.zipEntries,
+    classes: t.classes ? t.classes.slice(0, 400) : null,
+    dexClasses: t.dexClasses ? t.dexClasses.slice(0, 400) : null,
+    strings: {
+      total: strings.length,
+      urls: endpoints,
+      notable: sScore.notable,
+      minLength: 6,
+    },
+    endpoints,
+    ruleScores,
+    importHits: peImports.slice(0, 500),
+    symbolHits: elfSymbols.slice(0, 500),
+    classHits: javaClasses.slice(0, 300),
+    analyzedAt: new Date().toISOString(),
+  };
+  profile.stack = guessStack(profile);
+  profile.unknowns = limits(profile);
+  profile.evidence = buildEvidenceIndex(profile);
+  return profile;
+}
+
+// A flat index of every evidence id the profile carries, so a report can cite one and a
+// reader can find it. Kept small: ids plus a one-line value.
+export function buildEvidenceIndex(profile) {
+  const items = [];
+  const push = (kind, id, value, extra = '') => items.push({ id, kind, value: String(value).slice(0, 160), detail: extra });
+  for (const n of profile.strings?.notable || []) push(n.rule, n.id, n.value);
+  for (const h of profile.importHits || []) push(h.rule, h.id, h.api, 'import');
+  for (const h of profile.symbolHits || []) push(h.rule, h.id, h.api, 'symbol');
+  for (const h of profile.classHits || []) push(h.rule, h.id, h.api, 'class');
+  for (const e of profile.endpoints || []) push('endpoint', evidenceId('endpoint', e), e);
+  return items.slice(0, 1200);
+}
+
+export function pickEvidence(profile, rule, n = 6) {
+  return (profile.strings?.notable || []).filter((x) => x.rule === rule).slice(0, n);
+}
+
+export { path };

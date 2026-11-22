@@ -1,0 +1,11 @@
+This is a synthetic target, not a real program: it exists so the pipeline can be run
+end to end without a sample on disk.
+
+https://api.example.test/v1/session
+https://cdn.example.test/assets/app.js
+HKEY_CURRENT_USER\Software\Example\Run
+C:\Users\Public\example.cfg
+Activation Code
+trial period expired
+CreateRemoteThread
+IsDebuggerPresent

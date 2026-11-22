@@ -1,0 +1,19 @@
+# reacraft — read a target, write the contract, rebuild it, score the rebuild, close the gap.
+#
+# One row: this package's Host half (dsh/host/index.js), which imports the pipeline in
+# src/core directly. No MCP client, no bridge process, no external runtime: a tool call is
+# a function call inside DSH, so there is nothing to time out, reconnect or drain.
+#
+# The two partner CLIs (REA, craft-anything) stay optional. `reacraft_probe` reports them;
+# `reacraft_verify` never needs them; the CLI's `craft` command drives craft-anything when
+# it exists.
+#
+# Knobs:
+#   projectHome  where projects live (default: <package>/projects, or $REACRAFT_HOME)
+#   gate         default pass mark in percent for reacraft_verify (default 80)
+- insert:
+    - id: reacraft
+      name: reacraft
+      config:
+        # projectHome: 'D:\reacraft-projects'
+        # gate: 85

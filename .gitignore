@@ -1,0 +1,9 @@
+# analysis projects hold machine paths, sample hashes and large profiles
+projects/
+legacy/
+tmp/
+engines.json
+
+node_modules/
+*.log
+.DS_Store

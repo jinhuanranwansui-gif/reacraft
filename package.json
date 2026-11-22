@@ -1,0 +1,52 @@
+{
+  "name": "reacraft",
+  "version": "0.2.0",
+  "description": "Read a target, write a verifiable spec, rebuild it, score the rebuild, close the gap. One rail, zero dependencies. Ships as a CLI and as a DeepSeek Harness plugin.",
+  "type": "module",
+  "main": "dsh/host/index.js",
+  "bin": {
+    "reacraft": "src/cli.mjs"
+  },
+  "exports": {
+    ".": "./dsh/host/index.js",
+    "./api": "./src/api.mjs",
+    "./spec": "./src/core/spec.mjs",
+    "./verify": "./src/core/verify.mjs",
+    "./similarity": "./src/core/similarity.mjs",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "probe": "node src/cli.mjs probe",
+    "selftest": "node src/cli.mjs selftest",
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "reverse-engineering",
+    "reconstruction",
+    "similarity",
+    "provenance",
+    "rea",
+    "craft-anything",
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness"
+  ],
+  "files": [
+    "src",
+    "dsh",
+    "dsh.plugin.json",
+    "skill",
+    "docs",
+    "LICENSE",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./dsh/cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

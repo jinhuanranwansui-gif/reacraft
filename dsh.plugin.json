@@ -1,0 +1,35 @@
+{
+  "id": "reacraft",
+  "version": "0.2.0",
+  "description": "ReaCraft for DeepSeek Harness: read a target, write a contract with an acceptance test per obligation, score a rebuild, and turn every failure into the next instruction. Seven tools, no MCP bridge, no external runtime.",
+  "engines": {
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "contributes": {
+    "tools": [
+      "reacraft_probe",
+      "reacraft_read",
+      "reacraft_spec",
+      "reacraft_verify",
+      "reacraft_report",
+      "reacraft_prove",
+      "reacraft_status"
+    ],
+    "mcp": [],
+    "commands": [],
+    "skills": [
+      "rea-craft"
+    ]
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "reverse-engineering",
+    "reconstruction",
+    "similarity",
+    "provenance",
+    "rea",
+    "craft-anything"
+  ]
+}
