@@ -389,7 +389,7 @@ Or skip the wiring — this repository is also a composite action:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: jinhuanranwansui-gif/reacraft@v0.4.0
+- uses: jinhuanranwansui-gif/reacraft@v0.11.0
   with:
     target: samples/target.bin
     rebuild: build/

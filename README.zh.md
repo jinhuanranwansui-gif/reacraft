@@ -332,7 +332,7 @@ node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: jinhuanranwansui-gif/reacraft@v0.4.0
+- uses: jinhuanranwansui-gif/reacraft@v0.11.0
   with:
     target: samples/target.bin
     rebuild: build/

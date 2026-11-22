@@ -124,3 +124,21 @@ recomputes each hash, each `prev` link, and each recorded output file.
 A stage can be re-run, which overwrites its artifact. The newest record for a name wins; older
 claims are reported as `superseded`, not as tampering. Everything else — a changed file under
 the newest claim, a broken `prev`, an edited record — is a problem and makes `prove` exit 2.
+
+
+## The other records
+
+Six files carry their own schema id. Each is additive: a reader that does not know one can ignore
+it, and nothing in the obligation score depends on any of them.
+
+| where | schema | what it says |
+|---|---|---|
+| `profile.shield` | `reacraft.shield/1` | which protection was recognised, which evidence is a decoy, whether masked literals were recovered |
+| `profile.guard` | `reacraft.guard/1` | strings that read as instructions, with the rules that fired and a redacted preview |
+| `profile.decode` | `reacraft.decode/1` | masked literals recovered by arithmetic, the coefficient used, and that nothing was executed |
+| `profile.drm` | `reacraft.drm/1` | wrapper products, per-section entropy, whether the code or the whole image is encrypted |
+| `golden.json` | `reacraft.golden/1` | one run of the original: exit code, kind, parsed JSON or text, sha256 |
+| `golden-compare.json` | `reacraft.golden-compare/1` | leaf-by-leaf comparison of two runs: paths, expected, actual |
+
+`golden-compare` is the only one that reports a number of its own, and it is reported beside the
+obligation score rather than inside it — the same rule as similarity.

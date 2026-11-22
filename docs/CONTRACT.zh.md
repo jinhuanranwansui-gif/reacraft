@@ -126,3 +126,19 @@ score = round( 100 × Σ(得分 × 权重) / Σ(权重) )     只统计 status �
 其余情况——最新记录名下的文件变了、`prev` 断了、记录被改过——都是问题，`prove` 退出码 2。
 
 v0.1 时代写下的记录没有 `hash` 字段：它们被计为 `legacy`，不算断链。
+
+## 其余几种记录
+
+另有六个文件各自带 schema id。它们都是**增量**的：不认识它们的读者可以直接忽略，而且任何一种都
+不进义务分数。
+
+| 位置 | schema | 说明 |
+|---|---|---|
+| `profile.shield` | `reacraft.shield/1` | 认出了哪种保护、哪些证据是诱饵、掩码字面量是否已还原 |
+| `profile.guard` | `reacraft.guard/1` | 读起来像指令的字符串，含命中的规则与打码预览 |
+| `profile.decode` | `reacraft.decode/1` | 用算术还原的掩码字面量、所用系数、以及"没有执行任何东西" |
+| `profile.drm` | `reacraft.drm/1` | 壳产品、逐段熵、代码段或整镜像是否加密 |
+| `golden.json` | `reacraft.golden/1` | 原版跑一次的记录：退出码、类型、解析后的 JSON 或纯文本、sha256 |
+| `golden-compare.json` | `reacraft.golden-compare/1` | 两次运行的逐叶子比对：路径、期望值、实际值 |
+
+`golden-compare` 是唯一自带数字的，而且它和相似度一样，**并列报告而不并入义务分**。
