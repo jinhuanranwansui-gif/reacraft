@@ -23,6 +23,7 @@ import { buildMap, renderMap, recipeFor } from './core/map.mjs';
 import { r2Available, analyzeFunctions, decompileFunction, callersOf } from './core/disasm.mjs';
 import { fridaAvailable, runHook } from './core/dynamic.mjs';
 import { findSites, suggestAt, applyPatch } from './core/patch.mjs';
+import { dumpImage } from './core/dump.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -623,6 +624,39 @@ function hexBytes(arr) {
   return (arr || []).map((b) => b.toString(16).padStart(2, '0')).join(' ');
 }
 
+function cmdDump(args) {
+  const target = args._[1];
+  if (!target) fail('dump needs a program: reacraft dump <exe> [--after 4000] [--out image.bin]');
+  const file = path.resolve(target);
+  if (!fs.existsSync(file)) fail('no such file: ' + file);
+  if (!fridaAvailable()) fail('frida is not installed; `reacraft probe` shows what is available');
+
+  const afterMs = Math.max(500, Math.min(60000, Number(args.after) || 4000));
+  const out = typeof args.out === 'string' ? path.resolve(args.out) : null;
+  const r = dumpImage(file, { afterMs, outFile: out });
+  if (r.error) fail(r.error);
+
+  const lines = [
+    'target   ' + file,
+    'image    ' + r.file,
+    'bytes    ' + r.bytes,
+    'base     ' + (r.base || '?'),
+    'declared ' + (r.declaredSize || '?'),
+  ];
+  if (r.ok) {
+    lines.push('');
+    lines.push(r.note);
+    lines.push('');
+    lines.push('next: reacraft rea ' + r.file + '   (sections and entropy may now read normally)');
+    lines.push('      the import table in a dump is not usable as-is; rebuild it before trusting call targets');
+  } else {
+    lines.push('');
+    lines.push(r.note);
+  }
+  emit(args, { dump: r }, lines.join('\n'));
+  return r.ok ? 0 : 2;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -720,7 +754,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
-  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm, hook: cmdHook, patch: cmdPatch,
+  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm, hook: cmdHook, patch: cmdPatch, dump: cmdDump,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

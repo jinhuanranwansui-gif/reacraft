@@ -10,6 +10,37 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.19.0] — 2026-11-22
+
+The first half of unpacking: take the copy.
+
+### Added / 新增
+
+- **`dump` command and `src/core/dump.mjs`** — run the target, hook nothing, let it decrypt itself,
+  then copy its main module out of memory.
+  脱壳的前一半：不破解密码，等它自己解开，然后拿一份内存副本。
+- `--after <ms>` controls how long to wait before the copy; `--out` chooses the file.
+
+### Verified / 實測
+
+```text
+node.exe → 94,261,248 bytes dumped, base 0x7ff785f30000
+reacraft rea on the dump: kind=pe-native, strings 57743, endpoints 73, imports 0
+```
+
+`imports 0` is the important number, and it is not a bug. **A dump is not a runnable image**: the
+import table inside a live process points at resolved addresses, not at the names on disk. Rebuilding
+it is the next rung of unpacking, and until it is rebuilt a disassembler cannot follow calls into
+imported functions. Saying so in the output is cheaper than the wasted afternoon.
+
+### Two frida 17 breakages
+
+- `Memory.readByteArray` is gone; the pointer method `base.readByteArray(size)` is what survived.
+- The event log was opened in append mode, so a previous run's error line was still there and got
+  reported against a run that never failed. Cleared before each run now.
+
+36 tests, 23 bench checks.
+
 ## [0.18.0] — 2026-11-22
 
 The fifth rung, and the first one that writes.
