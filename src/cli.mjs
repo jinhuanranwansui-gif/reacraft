@@ -18,6 +18,7 @@ import { decodeFile } from './core/decode.mjs';
 import { bench } from './core/bench.mjs';
 import { toSarif } from './core/sarif.mjs';
 import { capture, writeGolden, readGolden, compareGolden, goldenObligations, flatten, GOLDEN_SCHEMA } from './core/golden.mjs';
+import { writeDashboard } from './core/dashboard.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -425,6 +426,25 @@ function cmdGolden(args) {
   return g.exitCode === 0 ? 0 : 2;
 }
 
+function cmdDashboard(args) {
+  const { slug, dir } = need(args._[1]);
+  const profile = readJson(path.join(dir, 'profile.json'));
+  const spec = fs.existsSync(path.join(dir, 'spec.json')) ? readJson(path.join(dir, 'spec.json')) : null;
+  const verification = fs.existsSync(path.join(dir, 'verification.json')) ? readJson(path.join(dir, 'verification.json')) : null;
+  const gaps = fs.existsSync(path.join(dir, 'gaps.json')) ? readJson(path.join(dir, 'gaps.json')) : null;
+  const chain = prove(dir);
+  const file = writeDashboard(dir, {
+    profile: profile ? { ...profile, toolVersion: VERSION } : null,
+    spec,
+    verification,
+    gaps,
+    ledger: { count: chain.records || 0, intact: !chain.problems.length },
+  });
+  record(dir, 'dashboard', { input: [], output: [fileEntry(file)], note: 'self-contained html' });
+  emit(args, { slug, dashboard: file }, ['dashboard ' + file]);
+  return 0;
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -522,6 +542,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
+  dashboard: cmdDashboard,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

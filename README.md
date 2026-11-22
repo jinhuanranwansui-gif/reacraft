@@ -167,6 +167,7 @@ node src/cli.mjs gaps sample --apply
 
 # 6. report + proof
 node src/cli.mjs report sample --html
+node src/cli.mjs dashboard sample      # one self-contained HTML page: score ring, obligations, gaps
 node src/cli.mjs prove sample
 ```
 

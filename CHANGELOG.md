@@ -10,6 +10,30 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.13.0] — 2026-11-22
+
+A dashboard that is one file, because that is the form that keeps working.
+
+### Added / 新增
+
+- **`dashboard` command** — writes `dashboard.html`: a score ring, obligation table with per-item
+  status and note, the gap plan, set coverage with the weighted column, and the capabilities with
+  their evidence ids. Inline CSS, inline SVG, no assets, no network. It opens from disk, attaches to
+  a CI artifact, and survives being emailed to someone.
+  一张自包含的 HTML 面板：分数环、义务表、缺口、覆盖度、能力与证据 id。没有外部资源，双击就能看。
+- Two field bugs found by looking at the rendered page rather than the code: `profile.stack` is an
+  object (`{primary, labels}`) and printed `[object Object]`; and the counts live at
+  `verification.pass/partial/fail`, not under a `summary` object, so the card read `0 pass`.
+  Both would have shipped as a page that looks fine and says nothing true.
+  两个字段名错误是**看渲染结果**才发现的，不是读代码发现的。
+- `bench` check `dashboard`: the page must contain an SVG ring and must not contain `[object Object]`.
+
+### Why not a DSH sidebar panel
+
+A sidebar panel needs a Cordis client plugin and a rebuilt web bundle; it would only exist inside
+this one application. The same information as a standalone page travels better and costs one file.
+If the panel is wanted later, `renderDashboard` already takes the four JSON documents it would need.
+
 ## [0.12.0] — 2026-11-22
 
 Five ways to hide a string, not one.
