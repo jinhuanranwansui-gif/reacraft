@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listAnalyzers } from '../../analyzers/index.mjs';
 
 export const MAP_SCHEMA = 'reacraft.map/1';
 
@@ -79,6 +80,8 @@ export function buildMap(profile = null) {
     schema: MAP_SCHEMA,
     domains: rows,
     counts,
+    // The container formats that can be opened at all, read from the registry rather than typed here.
+    analyzers: listAnalyzers(),
     // The honest line, and the one that matters for "support every domain".
     note:
       counts.none + ' domain(s) have no reader at all: a recipe tells you what to run, not what this tool can see',
@@ -95,6 +98,7 @@ export function renderMap(map) {
   }
   lines.push('');
   lines.push('full ' + map.counts.full + '   partial ' + map.counts.partial + '   none ' + map.counts.none);
+  lines.push('analyzers: ' + (map.analyzers || []).map((a) => a.id).join(', '));
   if (map.domains.some((d) => d.hit)) {
     lines.push('');
     lines.push('this target: ' + map.domains.filter((d) => d.hit).map((d) => d.id).join(', '));

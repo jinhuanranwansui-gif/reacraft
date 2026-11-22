@@ -422,11 +422,27 @@ not.** The method — read facts, make a contract, score, feed the gap back — 
 PE and an APK. What changes is the fact extractor and the recipe. So a new domain is two files, not a
 rewrite:
 
-1. an analyzer that produces facts (what `src/core/target.mjs` does for PE/ELF/Mach-O/asar);
+1. an analyzer in `analyzers/` — `{ id, title, probe(buf, {ext}) }`, returning `{ kind, ... }` or null;
 2. an entry in `knowledge/recipes.json` saying what to run and what to look for.
 
 Then set its `DEPTH` in `src/core/map.mjs` — and the map will say the truth about it, including when
 the answer is `none`.
+
+```js
+// analyzers/asar.mjs — the whole contract
+export default {
+  id: 'asar',
+  title: 'Electron asar',
+  probe(buf, { ext }) {
+    const asar = parseAsar(buf);
+    return asar ? { kind: 'asar', ext, asar } : null;
+  },
+};
+```
+
+The registry is the only place a format is listed: detection, the map's `analyzers:` line and the
+coverage table all read from it, so a format cannot be advertised without being registered, or
+registered without appearing in the table.
 
 ## What this is not: a verification harness
 

@@ -19,6 +19,7 @@ import { detectKind, parsePE } from '../src/core/target.mjs';
 import { decodeFile } from '../src/core/decode.mjs';
 import { capture, compareGolden, flatten, goldenObligations } from '../src/core/golden.mjs';
 import { buildMap, recipeFor } from '../src/core/map.mjs';
+import { detect, listAnalyzers } from '../analyzers/index.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -510,6 +511,27 @@ test('the coverage map says how deep each domain goes, not just that it exists',
 
   const r = recipeFor('protection');
   assert.ok(r && r.steps.length >= 2 && r.steps.every((s) => s.run && s.expect));
+});
+
+test('the analyzer registry is the only place a container format is declared', () => {
+  const list = listAnalyzers();
+  assert.deepEqual(list.map((a) => a.id), ['pe', 'elf', 'macho', 'zip', 'asar', 'binary-headers', 'text']);
+
+  // A PE buffer is claimed by the pe analyzer, and the answer carries which one claimed it.
+  const peBuf = makePE([{ name: '.text', data: Buffer.alloc(2048, 0x41) }]);
+  const pe = detect(peBuf, 'x.exe');
+  assert.equal(pe.kind, 'pe-native');
+  assert.equal(pe.analyzer, 'pe');
+  assert.ok(pe.pe && pe.pe.sections.length);
+
+  // Text falls through to the floor, not into an earlier probe.
+  const txt = detect(Buffer.from('hello world\n'.repeat(80)), 'a.txt');
+  assert.equal(txt.kind, 'text');
+  assert.equal(txt.analyzer, 'text');
+
+  // Unrecognisable bytes are still labelled rather than thrown away.
+  const junk = detect(Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 'x.bin');
+  assert.ok(junk.kind && junk.analyzer);
 });
 
 test('the bench proves the whole claim end to end', () => {

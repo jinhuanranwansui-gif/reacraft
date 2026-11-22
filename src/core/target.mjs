@@ -5,6 +5,7 @@
 // truncated container reports what it could not read instead of guessing.
 import fs from 'node:fs';
 import path from 'node:path';
+import { detect } from '../../analyzers/index.mjs';
 import { sha256File } from './ledger.mjs';
 
 const MAX_FULL_READ = 640 * 1024 * 1024;
@@ -418,45 +419,10 @@ export function parseAsar(buf) {
 
 // ---------------------------------------------------------------- kind
 
+// Detection now lives in analyzers/: each format is a file there, tried in order. This function is
+// kept as the name the rest of the code already calls.
 export function detectKind(buf, file) {
-  const ext = path.extname(file).toLowerCase();
-  if (!buf) return { kind: 'large-file', ext };
-  if (buf.length >= 2 && buf[0] === 0x4d && buf[1] === 0x5a) {
-    const pe = parsePE(buf);
-    if (pe && pe.isDotNet) return { kind: 'pe-dotnet', ext, pe };
-    if (pe) return { kind: 'pe-native', ext, pe };
-    return { kind: 'pe-unknown', ext };
-  }
-  const elf = parseELF(buf);
-  if (elf) return { kind: 'elf', ext, elf };
-  const macho = parseMachO(buf);
-  if (macho) return { kind: 'macho', ext, macho };
-  if (buf.length >= 4 && buf.readUInt32LE(0) === 0x504b0304) {
-    const names = zipNames(buf);
-    if (names.includes('AndroidManifest.xml')) {
-      const dex = buf.indexOf(Buffer.from('dex\n'));
-      return { kind: 'apk', ext, zipEntries: names, dexClasses: dex >= 0 ? dexClassNames(buf.subarray(dex)) : [] };
-    }
-    if (names.some((n) => /^classes\d*\.dex$/.test(n))) return { kind: 'dex-archive', ext, zipEntries: names };
-    if (names.some((n) => n.endsWith('.class'))) {
-      return {
-        kind: 'jar', ext, zipEntries: names,
-        classes: names.filter((n) => n.endsWith('.class')).map((n) => n.replace(/\.class$/, '').replace(/\//g, '.')).slice(0, 400),
-      };
-    }
-    return { kind: 'zip', ext, zipEntries: names };
-  }
-  const asar = parseAsar(buf);
-  if (asar) return { kind: 'asar', ext, asar };
-  if (ext === '.wasm' || (buf.length > 4 && buf.readUInt32LE(0) === 0x6d736100)) return { kind: 'wasm', ext };
-  if (ext === '.pyc' || (buf.length > 4 && buf.readUInt16LE(0) === 0x0a0d)) return { kind: 'pyc', ext };
-  const head = buf.subarray(0, Math.min(buf.length, 4096)).toString('utf8');
-  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return { kind: 'javascript', ext, looksBundled: /webpack|__webpack_require__|browserify|rollup/i.test(head) };
-  if (ext === '.json') return { kind: 'json-data', ext };
-  if (ext === '.html' || ext === '.htm') return { kind: 'html', ext };
-  if (/^#!.*\b(node|python|bash|sh|pwsh)\b/.test(head)) return { kind: 'script', ext };
-  if (ext === '.dll' || ext === '.exe' || ext === '.sys') return { kind: 'unknown-binary', ext };
-  return { kind: 'data', ext };
+  return detect(buf, file);
 }
 
 // ---------------------------------------------------------------- strings

@@ -357,10 +357,25 @@ full 5   partial 6   none 1
 「支持所有逆向域」做不到；**「把同一套方法用到每个域」做得到**。方法——读事实、写合同、打分、差额反哺——
 在 PE 和 APK 之间没有任何变化，变的是事实提取器和配方。所以新增一个域是两个文件，不是重写：
 
-1. 一个产出事实的 analyzer（`src/core/target.mjs` 对 PE/ELF/Mach-O/asar 做的就是这件事）；
+1. `analyzers/` 里一个文件：`{ id, title, probe(buf, {ext}) }`，返回 `{ kind, ... }` 或 null；
 2. `knowledge/recipes.json` 里的一条，说明跑什么、看什么。
 
 然后在 `src/core/map.mjs` 里设它的 `DEPTH`——表格就会如实说，包括答案是 `none` 的时候。
+
+```js
+// analyzers/asar.mjs —— 全部契约就这些
+export default {
+  id: 'asar',
+  title: 'Electron asar',
+  probe(buf, { ext }) {
+    const asar = parseAsar(buf);
+    return asar ? { kind: 'asar', ext, asar } : null;
+  },
+};
+```
+
+**注册表是格式的唯一出口**：探测、`map` 的 `analyzers:` 行、覆盖表都从它读，所以一个格式不可能
+"宣传了但没注册"，也不可能"注册了但不出现在表里"。
 
 ## 它不是什么：验证台架
 

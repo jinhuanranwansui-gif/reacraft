@@ -10,6 +10,34 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.15.0] — 2026-11-22
+
+Detection becomes a registry, so a new format is a file rather than an edit to the core.
+
+### Changed / 变更
+
+- **`analyzers/`** — seven files (`pe`, `elf`, `macho`, `zip`, `asar`, `binary-headers`, `text`), each
+  exporting `{ id, title, probe(buf, {ext}) }` and returning `{ kind, ... }` or null.
+  `detectKind` now delegates to the registry; the shape it returns is byte-for-byte the same, which is
+  what let a 30-test suite stay green through the move.
+  探测从 `detectKind` 里的 if/else 变成注册表；返回形状一个字节都没变，所以 30 个测试全绿。
+- **The registry is the single source for advertising.** `reacraft map` prints its `analyzers:` line and
+  the coverage table from `listAnalyzers()`, so a format cannot be listed without being registered, or
+  registered without appearing in the table.
+  格式只有一处登记：探测、map 的 analyzers 行、覆盖表都从那里读。
+- `probe` returns null to decline, which is how "I recognise this" and "here is what I read" stay one
+  function instead of a `matches()` that parses the same bytes twice.
+
+### Verified / 实测
+
+```text
+isaac-ng.exe              → pe-native / pe
+default_app.asar          → asar / asar
+examples/hello/target.txt → text / text
+```
+
+31 tests (one new: the registry is the only place a format is declared), 22 bench checks.
+
 ## [0.14.0] — 2026-11-22
 
 The first answer to "can this cover every reverse-engineering domain", and it starts with the word no.
