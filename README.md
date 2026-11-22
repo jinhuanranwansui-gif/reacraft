@@ -115,7 +115,7 @@ read over instead of competing.
 Nothing to install for the core:
 
 ```bash
-node src/cli.mjs probe
+npx reacraft probe          # after the npm release; until then, clone and run node src/cli.mjs
 ```
 
 As a CLI:
