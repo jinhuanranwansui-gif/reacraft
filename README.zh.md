@@ -8,6 +8,28 @@
 
 [English](README.md) · **中文** · [变更日志](CHANGELOG.md) · [合同与评分口径](docs/CONTRACT.zh.md)
 
+<details>
+<summary>目录</summary>
+
+- [三十秒](#三十秒)
+- [为什么有这个](#为什么有这个)
+- [安装](#安装)
+- [用法](#用法)
+- [分数到底怎么算](#分数到底怎么算)
+- [结构](#结构)
+- [面对盾（BLA）](#面对盾bla)
+- [商业保护层：Steam DRM、UPX、VMProtect](#商业保护层steam-drmupxvmprotect)
+- [指令性的字符串](#指令性的字符串)
+- [原版能跑的时候，拿它当 ground truth](#原版能跑的时候拿它当-ground-truth)
+- [它不是什么：验证台架](#它不是什么验证台架)
+- [接进 CI](#接进-ci)
+- [常被问到的几件事](#常被问到的几件事)
+- [局限（先说清楚）](#局限先说清楚)
+- [自己验一遍](#自己验一遍)
+- [许可](#许可)
+
+</details>
+
 读目标 → 写合同 → 重建 → 打分 → 把差额变成下一步。
 
 ReaCraft 站在两个优秀工具的中间，做它们各自都不做的那一段：把静态读取的结果变成**自带验收方式**的义务，按义务给重建打分，再把每个失败翻译成下一轮指令。整条链路留下哈希链记录，事后可以逐条复算。
@@ -165,6 +187,8 @@ node src/cli.mjs prove sample
 | `docs/CONTRACT.md` | schema 与评分口径（英文） |
 | `docs/CONTRACT.zh.md` | 同上，中文——要跟分数吵架就读这个 |
 | `CHANGELOG.md` | 版本之间改了什么（中英对照） |
+| `tools/` | 几个独立小工具：`fuzz-guard`、`pe-entropy`、`pe-dump`、`scan-library` |
+| `docs/CASE-dsh-asar.md` | 一次真实重建：运行时检查跑不起来，静态检查仍然给了分 |
 
 ## 实测踩过的坑（都已修）
 

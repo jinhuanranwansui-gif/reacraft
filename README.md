@@ -8,6 +8,29 @@
 
 **English** · [中文](README.zh.md) · [Changelog](CHANGELOG.md) · [Contract](docs/CONTRACT.md)
 
+<details>
+<summary>Contents</summary>
+
+- [Thirty seconds](#thirty-seconds)
+- [Why this exists](#why-this-exists)
+- [Install](#install)
+- [Use](#use)
+- [What a score means, and what it does not](#what-a-score-means-and-what-it-does-not)
+- [The parts](#the-parts)
+- [Against a shield](#against-a-shield)
+- [Commercial wrappers: Steam DRM, UPX, VMProtect](#commercial-wrappers-steam-drm-upx-vmprotect)
+- [Instruction-like strings](#instruction-like-strings)
+- [Ground truth when the original runs](#ground-truth-when-the-original-runs)
+- [What this is not: a verification harness](#what-this-is-not-a-verification-harness)
+- [Into CI](#into-ci)
+- [Questions people actually ask](#questions-people-actually-ask)
+- [Limits, stated up front](#limits-stated-up-front)
+- [Verify the claims](#verify-the-claims)
+- [A real run](#one-real-run)
+- [License](#license)
+
+</details>
+
 Read a target, write a contract, rebuild it, score the rebuild, close the gap.
 
 ReaCraft sits between two excellent tools and does the thing neither of them does on its own:
@@ -194,6 +217,8 @@ report says so; the score is meant to be a floor to argue with, not a certificat
 | `skill/rea-craft/SKILL.md` | the agent-facing playbook |
 | `docs/CONTRACT.md` · [`CONTRACT.zh.md`](docs/CONTRACT.zh.md) | schema shapes and the exact scoring rule |
 | `CHANGELOG.md` | what changed between versions |
+| `tools/` | the small standalone tools: `fuzz-guard`, `pe-entropy`, `pe-dump`, `scan-library` |
+| `docs/CASE-dsh-asar.md` | a real rebuild where the runtime check could not run and the static one still scored |
 
 Design notes:
 
