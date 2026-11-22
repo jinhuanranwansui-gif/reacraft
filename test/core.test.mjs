@@ -22,6 +22,7 @@ import { buildMap, recipeFor } from '../src/core/map.mjs';
 import { detect, listAnalyzers } from '../analyzers/index.mjs';
 import { r2Available, analyzeFunctions, decompileFunction } from '../src/core/disasm.mjs';
 import { fridaAvailable, runHook } from '../src/core/dynamic.mjs';
+import { patchOptions, applyPatch, vaToOffset } from '../src/core/patch.mjs';
 import { bench } from '../src/core/bench.mjs';
 
 function tmpdir() {
@@ -574,6 +575,61 @@ test('the dynamic hook says why it captured nothing instead of returning an empt
   assert.equal(r.available, true);
   assert.ok(r.error && /exited before/.test(r.error), 'expected an early-exit reason, got ' + JSON.stringify(r.error));
   assert.equal(r.count ?? 0, 0);
+});
+
+test('a conditional jump offers exactly a flip and a nop, and a plain byte offers nothing', () => {
+  // je +5, then a nop. Two options, both of them meaningful, nothing invented.
+  const buf = Buffer.from([0x74, 0x05, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+  const opts = patchOptions(buf, 0);
+  assert.equal(opts.length, 2);
+  assert.deepEqual(opts[0].to, [0x75], 'je becomes jne');
+  assert.deepEqual(opts[1].to, [0x90, 0x90], 'or both bytes become nop');
+  assert.ok(opts.every((o) => o.why && o.from.length === o.to.length));
+
+  // A push instruction is not a branch; offering a patch for it would be noise.
+  assert.deepEqual(patchOptions(Buffer.from([0x55, 0x8b, 0xec]), 0), []);
+
+  // Near conditional: 0f 84 -> 0f 85, six bytes total, so the nop form is six.
+  const near = Buffer.from([0x0f, 0x84, 0x10, 0x00, 0x00, 0x00]);
+  const nearOpts = patchOptions(near, 0);
+  assert.equal(nearOpts[0].to[1], 0x85);
+  assert.equal(nearOpts[1].to.length, 6);
+
+  // 0x84 on its own is not a jump, so it must not be offered as one.
+  assert.deepEqual(patchOptions(Buffer.from([0x84, 0x00]), 0), []);
+});
+
+test('applying a patch writes a copy and leaves the original alone', () => {
+  const dir = tmpdir();
+  const file = path.join(dir, 'target.bin');
+  const original = Buffer.from([0x74, 0x05, 0x90, 0x90]);
+  fs.writeFileSync(file, original);
+
+  const [flip] = patchOptions(original, 0);
+  const r = applyPatch(file, flip);
+  assert.equal(r.applied, true);
+  assert.ok(r.target.endsWith('.patched'));
+
+  assert.deepEqual([...fs.readFileSync(file)], [...original], 'the original must not change');
+  const patched = fs.readFileSync(r.target);
+  assert.equal(patched[0], 0x75);
+  assert.deepEqual([...patched.subarray(1)], [...original.subarray(1)]);
+});
+
+test('a virtual address is converted through the section table, never used as an offset', () => {
+  const dir = tmpdir();
+  const f = path.join(dir, 'y.exe');
+  fs.writeFileSync(f, makePE([{ name: '.text', data: Buffer.alloc(4096, 0x74) }]));
+  const buf = fs.readFileSync(f);
+  const pe = parsePE(buf);
+  const s = pe.sections[0];
+
+  // parsePE keeps imageBase as a hex string, so add numbers, not strings.
+  const base = typeof pe.imageBase === 'number' ? pe.imageBase : parseInt(String(pe.imageBase), 16);
+  assert.equal(vaToOffset(pe, base + s.virtualAddress), s.rawPtr);
+  assert.equal(vaToOffset(pe, base + s.virtualAddress + 16), s.rawPtr + 16);
+  // An address outside every section has no file bytes behind it.
+  assert.equal(vaToOffset(pe, base + 0x7fffffff), null);
 });
 
 test('the bench proves the whole claim end to end', () => {

@@ -382,6 +382,31 @@ hook 你点名的导入，把每次调用和第一个参数记下来。
 
 没装 frida 的话命令会直说，其它一切不变。
 
+## 改它，并验证改了
+
+```bash
+node src/cli.mjs patch sample.exe                    # 像判断的字符串，以及谁引用了它们
+node src/cli.mjs patch sample.exe --at 0x14000e6eb   # 这个地址上改一下能有几种改法
+node src/cli.mjs patch sample.exe --at 0x14000e6eb --option 0 --apply
+```
+
+```text
+at       5368765142
+before   0f 87
+after    0f 86
+why      invert the near condition
+         原文件未动；差异在文件偏移 0xdad6
+```
+
+三条规矩，因为这一步会写：
+
+1. **原文件绝不碰。** 产出 `<名字>.patched`，源文件只读。
+2. **先描述再应用**——地址、原字节、新字节、为什么。`--apply` 不给 `--option` 会拒绝。
+3. **验证是独立的一步。** "字节变了"不等于"行为变了"，所以输出让你去跑结果，而不是相信它。
+
+改动算术是纯字节操作，不需要二进制就能测：条件跳转恰好给两个选项（翻转、或 nop 掉），
+普通指令一个都不给，近跳转是六字节而不是五字节。
+
 ## 覆盖什么，覆盖多深
 
 ```bash

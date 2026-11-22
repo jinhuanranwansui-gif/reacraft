@@ -22,6 +22,7 @@ import { writeDashboard } from './core/dashboard.mjs';
 import { buildMap, renderMap, recipeFor } from './core/map.mjs';
 import { r2Available, analyzeFunctions, decompileFunction, callersOf } from './core/disasm.mjs';
 import { fridaAvailable, runHook } from './core/dynamic.mjs';
+import { findSites, suggestAt, applyPatch } from './core/patch.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -549,6 +550,79 @@ function cmdHook(args) {
   return r.count || r.error ? 0 : 2;
 }
 
+function cmdPatch(args) {
+  const target = args._[1];
+  if (!target) fail('patch needs a file: reacraft patch <file> [--at 0x401000] [--apply]');
+  const file = path.resolve(target);
+  if (!fs.existsSync(file)) fail('no such file: ' + file);
+
+  // 1. locate: decision-like strings and what references them
+  if (args.at === undefined) {
+    const s = findSites(file, { hint: typeof args.hint === 'string' ? args.hint : undefined });
+    const lines = ['file     ' + file, 'strings  ' + s.strings + ' matched ' + (s.searched || []).join('/')];
+    if (!s.sites.length) lines.push('', s.note);
+    else {
+      lines.push('');
+      for (const site of s.sites.slice(0, 15)) {
+        lines.push('  ' + String(site.from).padEnd(12) + '  ' + String(site.function || '?').padEnd(28) + '  ' + site.opcode);
+      }
+      lines.push('', s.note);
+      lines.push('', 'next: reacraft patch ' + path.basename(file) + ' --at <address>');
+    }
+    emit(args, { file, sites: s }, lines.join('\n'));
+    return s.sites.length ? 0 : 2;
+  }
+
+  // 2. describe: what a change at this address could be
+  const addr = String(args.at);
+  const sug = suggestAt(file, addr, { count: Math.max(8, Math.min(2000, Number(args.count) || 200)) });
+  if (!sug.options.length) {
+    emit(args, { file, at: addr, suggest: sug }, 'at ' + addr + ': ' + sug.note);
+    return 2;
+  }
+  if (args.apply !== true) {
+    const lines = ['file  ' + file, 'at    ' + addr, '', 'options:'];
+    sug.options.forEach((o, i) => {
+      lines.push('  [' + i + '] ' + o.kind.padEnd(5) + ' ' + hexBytes(o.from) + ' -> ' + hexBytes(o.to) + '   ' + o.opcode);
+      lines.push('      ' + o.why);
+    });
+    lines.push('', 'apply one: reacraft patch ' + path.basename(file) + ' --at ' + addr + ' --option <n> --apply');
+    emit(args, { file, at: addr, suggest: sug }, lines.join('\n'));
+    return 0;
+  }
+
+  // 3. write a copy, never the original
+  const idx = Number(args.option);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= sug.options.length) {
+    fail('--apply needs --option <0..' + (sug.options.length - 1) + '>');
+  }
+  const chosen = sug.options[idx];
+  const res = applyPatch(file, chosen, { out: typeof args.out === 'string' ? path.resolve(args.out) : null });
+  const lines = [
+    'source   ' + res.source,
+    'target   ' + res.target,
+    'at       ' + res.at,
+    'before   ' + hexBytes(res.before),
+    'after    ' + hexBytes(res.after),
+    'why      ' + chosen.why,
+    '',
+    res.note,
+    '',
+    'verify it, do not assume it:  reacraft hook ' + path.basename(res.target) + ' --apis <imports>',
+  ];
+  record(path.dirname(file), 'patch', {
+    input: [fileEntry(file)],
+    output: [fileEntry(res.target)],
+    note: 'offset=' + res.at + ' ' + hexBytes(res.before) + '->' + hexBytes(res.after),
+  });
+  emit(args, { patch: res }, lines.join('\n'));
+  return 0;
+}
+
+function hexBytes(arr) {
+  return (arr || []).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+}
+
 function cmdBench(args) {
   const r = bench();
   emit(args, r, r.lines.join('\n'));
@@ -646,7 +720,7 @@ function cmdHelp() {
 const table = {
   probe: cmdProbe, rea: cmdRea, spec: cmdSpec, craft: cmdCraft, verify: cmdVerify,
   gaps: cmdGaps, decode: cmdDecode, golden: cmdGolden, report: cmdReport, prove: cmdProve,
-  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm, hook: cmdHook,
+  dashboard: cmdDashboard, map: cmdMap, disasm: cmdDisasm, hook: cmdHook, patch: cmdPatch,
   status: cmdStatus, all: cmdAll, selftest: cmdSelftest, bench: cmdBench, help: cmdHelp,
 };
 

@@ -445,6 +445,34 @@ Three things about this were learned by them not working, and all three are in t
 
 Without frida the command says so and nothing else changes.
 
+## Changing it, and checking the change
+
+```bash
+node src/cli.mjs patch sample.exe                    # decision-like strings and what references them
+node src/cli.mjs patch sample.exe --at 0x14000e6eb   # what a change at that address could be
+node src/cli.mjs patch sample.exe --at 0x14000e6eb --option 0 --apply
+```
+
+```text
+at       5368765142
+before   0f 87
+after    0f 86
+why      invert the near condition
+         the original is untouched; differs at file offset 0xdad6
+```
+
+Three rules, because this step writes:
+
+1. **The original is never touched.** A patch produces `<name>.patched`; the source file is only read.
+2. **It is described before it is applied** — address, old bytes, new bytes, and why. `--apply` without
+   `--option` refuses.
+3. **Verification is a separate step.** "The bytes changed" is not "the behaviour changed", so the
+   output tells you to run the result, not to trust it.
+
+The patch arithmetic is pure byte work and tested without a binary: a conditional jump offers exactly
+two options (flip it, or nop it), a plain instruction offers none, and a near jump is six bytes rather
+than five.
+
 ## What it covers, and how deep
 
 ```bash

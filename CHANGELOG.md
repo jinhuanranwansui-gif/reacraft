@@ -10,6 +10,42 @@ versions follow [SemVer](https://semver.org/).
 > 别从 `v0.2.0`–`v0.5.0` 开始用：那是项目的第一天，留着当记录。**从 `v0.6.0` 起**——对不可信输入的处理是从
 > 那一版开始的。
 
+## [0.18.0] — 2026-11-22
+
+The fifth rung, and the first one that writes.
+
+### Added / 新增
+
+- **`patch` command and `src/core/patch.mjs`** — find decision-like strings and the code that
+  references them, describe what a byte change at an address could be, and apply one to a copy.
+  第五格：改它。这是第一个会写文件的命令，所以规矩最窄。
+- **`--at`** prints the options: flip a conditional jump, or remove it. Nothing else is offered,
+  because nothing else is meaningful at a branch.
+- **`--apply`** writes `<name>.patched` and reports the file offset it touched. The original is only
+  read.
+- A ledger record for every patch: source file, target file, offset, bytes before and after.
+
+### Three arithmetic facts that had to be got right
+
+1. **A virtual address is not a file offset.** The first version passed r2's `addr` straight to a byte
+   comparison, which read past the end of a 350 KB file at 0x14000e6eb. It now converts through the
+   section table, and a test pins it: the first byte of a section maps to its raw pointer.
+2. **`parsePE` keeps `imageBase` as a hex string.** `Number('0x400000')` is NaN, and NaN made every
+   range comparison false — the conversion silently returned null for every address.
+3. **`pxj @ <va>` gives different answers before and after analysis.** Verifying a write through r2 was
+   unreliable; the check is now a plain byte comparison of the two files.
+
+### Verified / 實測
+
+```text
+notepad.exe @ 0x14000e6eb, option 0
+before   0f 87        (ja)
+after    0f 86        (jbe)
+differing bytes between the files: 1, at 0xdad7: 135 -> 134
+```
+
+36 tests (2 skipped by design), 23 bench checks.
+
 ## [0.17.0] — 2026-11-22
 
 The fourth rung: not what it can do, but what it does.
