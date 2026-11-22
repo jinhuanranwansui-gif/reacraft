@@ -345,6 +345,11 @@ only one available when the target cannot run — wrong platform, needs a server
 when you do not want to run it. The two are complementary rather than competing: an emulated ground
 truth is the ceiling, and this is the floor you can always compute.
 
+That is not theoretical. [docs/CASE-dsh-asar.md](docs/CASE-dsh-asar.md) records a real rebuild where
+craft-anything's own runtime check could not run at all (Electron dies on this machine with
+`0xC0000005`), the build was stopped at exit 1 — and the static contract still scored 100%. Both
+answers were true: the program could not be observed, and the code was the right code.
+
 ## Into CI
 
 A rebuild that misses an obligation is a defect in that tree, so it can also be a SARIF result:
