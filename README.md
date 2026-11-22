@@ -33,6 +33,10 @@
 
 Read a target, write a contract, rebuild it, score the rebuild, close the gap.
 
+![ReaCraft: bench, decode and verify running on real output](docs/demo.gif)
+
+*[demo.mp4](docs/demo.mp4) if the GIF is too small — every frame is real command output, not a mock-up.*
+
 ReaCraft sits between two excellent tools and does the thing neither of them does on its own:
 it takes what a static read found, turns it into obligations that each carry their own
 acceptance test, scores a rebuild against those obligations, and turns every failure into the
