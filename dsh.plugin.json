@@ -11,6 +11,7 @@
       "reacraft_read",
       "reacraft_spec",
       "reacraft_verify",
+      "reacraft_decode",
       "reacraft_report",
       "reacraft_prove",
       "reacraft_status"

@@ -14,6 +14,40 @@ ReaCraft 站在两个优秀工具的中间，做它们各自都不做的那一�
 
 零依赖。纯 Node，什么都没装也能跑。
 
+## 三十秒
+
+```bash
+git clone https://github.com/jinhuanranwansui-gif/reacraft && cd reacraft
+node src/cli.mjs all examples/hello/target.txt --name demo --rebuild examples/hello/rebuild
+```
+
+示例里的重建是**故意不完整**的。不装任何东西、不调模型、不执行目标，你会拿到：
+
+```text
+score    30%   gate=80% → below
+items    pass=0 partial=3 fail=2 pending=1   files=1
+similar  22% (low confidence, minhash=null)
+
+  partial ob-endpoints   1/2 patterns found
+  fail    ob-literals    0/2 patterns found
+  partial ob-cap-network 1/2 patterns found
+  pending ob-behaviour   needs a human note
+```
+
+以及一份可以直接交给重建引擎的下一步指令：
+
+```text
+Continue the rebuild of target.txt.
+Current score: 30% (gate 80%).
+Close these, highest weight first:
+- [partial][w5] Add these endpoints to the rebuild config exactly as written: https://cdn.example.test/assets/app.js
+- [missing][w4] Reference these exact paths, keys or statements in the rebuild: HKEY_CURRENT_USER, C:\Users\Public\example.cfg
+- [human][w2] Record the observed difference between the original and the rebuild …
+```
+
+`partial` 按比例给分，`fail` 拿 0 分，`pending` 不进分母。整个过程没有执行任何东西、没有安装
+任何东西、没有问过模型——**一个你能自己重算出来的分数，就是全部产品**。
+
 ```
 read ──▶ spec ──▶ (rebuild) ──▶ verify ──▶ gaps ──▶ (rebuild) ──▶ verify
   │        │                       │          │
@@ -31,7 +65,7 @@ profile   义务 + 验收方式          分数 +     给重建引擎的
 | 失败 → 下一步 | — | 它自己的 builder 按自己的检查迭代 | **`gaps` 直接产出下一轮请求，不管重建是谁做的** |
 | 可复算 | 证据导出/导入 | 项目内证据库 | **哈希链台账；`prove` 逐个重算记录过的文件** |
 | 需要装引擎 | 需要（深度靠 Ghidra） | 需要（106 MB Rust 二进制） | **不需要** |
-| DSH 集成 | MCP 桥插件 | MCP 桥插件 | **原生 Cordis 插件：7 个工具，无桥进程，自带 skill** |
+| DSH 集成 | MCP 桥插件 | MCP 桥插件 | **原生 Cordis 插件：8 个工具，无桥进程，自带 skill** |
 
 口径说窄一点、也说得可查：两个伙伴都把自己的闭环关在**自己的运行时和项目格式里**；ReaCraft 把闭环放在**合同层**——一堆源码就够，读取可以来自它自己的解析器、REA、或者人；打分既不需要 LLM 也不需要 106 MB 的二进制。它**不试图**在读取广度上超过 REA；对网站重建，craft-anything 的像素/SSIM 比对比字面量覆盖更锐利，这种情况下两边的结果都该看。装了 REA 就 `--deep` 交给它，不跟它抢。
 
@@ -50,7 +84,7 @@ npm i -g reacraft        # 或在本仓库 npm link
 reacraft probe
 ```
 
-当 DSH 插件用（7 个工具，没有 MCP 桥）：
+当 DSH 插件用（8 个工具，没有 MCP 桥）：
 
 ```bash
 dsh plugin --profile desktop add link:<本仓库绝对路径>
@@ -126,7 +160,7 @@ node src/cli.mjs prove sample
 | `src/core/report.mjs` | report.md / report.json / report.html |
 | `src/core/partners.mjs` | 可选的 REA 与 craft-anything CLI 封装 |
 | `src/cli.mjs` | 命令行 |
-| `dsh/host/index.js` | DSH 插件：`ctx.tools` 上 7 个工具 |
+| `dsh/host/index.js` | DSH 插件：`ctx.tools` 上 8 个工具 |
 | `skill/rea-craft/SKILL.md` | 给智能体看的操作手册 |
 | `docs/CONTRACT.md` | schema 与评分口径（英文） |
 | `docs/CONTRACT.zh.md` | 同上，中文——要跟分数吵架就读这个 |
@@ -205,6 +239,35 @@ node src/cli.mjs verify sample --rebuild build/sample --sarif reacraft.sarif
 ```
 
 分数写进 job summary，低于门槛就失败，有 `security-events: write` 就把 SARIF 传上去。
+
+## 常被问到的几件事
+
+**「为什么不直接用 REA？」** 读的时候该用。REA 是 241 个 MCP 工具，背后是 Ghidra、IDA、Frida 和
+十几个引擎；凡是有解析器的目标，它读得比这里深。`reacraft rea <目标> --deep` 就是把深读交给它，
+并保留它的证据。ReaCraft 加的是**读完之后那一层**：带验收方式的义务、分数、修复计划。
+
+**「为什么不直接用 craft-anything？」** 重建的时候也该用。把 `verify --rebuild` 指向
+`<craft 项目>/app`，你就拿到对 craft 产物的外部评分。它对网站的检查（像素、布局）更锐利；
+这里的评分对任何一棵树都成立，包括人手写的那棵。
+
+**「100% 是不是说明重建对了？」** 不是。它说明所有**能判定**的义务都满足了。人工义务要有人签，
+`pending` 不进分母，覆盖度数的是"出现过"而不是"行为一致"。精确规则在 `docs/CONTRACT.zh.md`。
+
+**「它会执行我的目标吗？」** 不会。解析器不会，评分器不会，`decode` 也不会——还原掩码字面量是
+对文件自己携带的整数数组做算术。唯一的子进程是两个可选的伙伴 CLI，而且只有你传 `--deep` 或
+`--run` 时才会发生。
+
+**「为什么坚持零依赖？」** 因为一个只读文件的工具，应该能在任何 CI、任何系统上跑，不需要
+106 MB 下载，也不需要折腾 Node 版本。`node --test`、`bench` 和这里每条命令都能在 Node 18 上
+零安装跑。
+
+**「能读什么？」** PE（导入、导出、延迟导入、签名、overlay）、ELF（段、dynsym、DT_NEEDED、
+interpreter）、Mach-O（段、dylib、fat 检测）、APK / JAR / ZIP、Electron ASAR（manifest、
+integrity）、WASM、`.pyc`、纯脚本。它读**容器**，不做反汇编。
+
+**「加壳/加密的目标呢？」** 容器仍然可读——盾是加字节，不是重写结构。`shield` 会说明它认出了什么、
+把诱饵标出来、把掩码字面量报成"已还原"或"读不到"。`decode` 处理 split-share 这一种构造；
+别的构造不猜。
 
 ## 局限（先说清楚）
 

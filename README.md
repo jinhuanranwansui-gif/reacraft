@@ -17,6 +17,43 @@ next instruction. The whole run leaves a hash-chained record you can recompute l
 
 Zero dependencies. One Node file tree. Runs with nothing installed.
 
+## Thirty seconds
+
+```bash
+git clone https://github.com/jinhuanranwansui-gif/reacraft && cd reacraft
+node src/cli.mjs all examples/hello/target.txt --name demo --rebuild examples/hello/rebuild
+```
+
+The example rebuild is deliberately incomplete. With no install, no engine and no model call:
+
+```text
+score    30%   gate=80% → below
+items    pass=0 partial=3 fail=2 pending=1   files=1
+similar  22% (low confidence, minhash=null)
+
+  partial ob-endpoints   1/2 patterns found
+  fail    ob-literals    0/2 patterns found
+  partial ob-cap-network 1/2 patterns found
+  partial ob-cap-licensing 1/2 patterns found
+  fail    ob-cap-registry 0/1 patterns found
+  pending ob-behaviour   needs a human note
+```
+
+…and the next instruction, ready to hand to whichever builder produced the tree:
+
+```text
+Continue the rebuild of target.txt.
+Current score: 30% (gate 80%).
+Close these, highest weight first:
+- [partial][w5] Add these endpoints to the rebuild config exactly as written: https://cdn.example.test/assets/app.js
+- [missing][w4] Reference these exact paths, keys or statements in the rebuild: HKEY_CURRENT_USER, C:\Users\Public\example.cfg
+- [human][w2] Record the observed difference between the original and the rebuild …
+```
+
+`partial` earns its ratio, `fail` earns nothing, `pending` leaves the denominator. Nothing was
+executed, nothing was installed, and no model was consulted — a score you can recompute is the
+whole product.
+
 ```
 read ──▶ spec ──▶ (rebuild) ──▶ verify ──▶ gaps ──▶ (rebuild) ──▶ verify
   │        │                       │          │
@@ -35,7 +72,7 @@ profile   obligations +           score +    fix request
 | Failure → next instruction | — | Its builder iterates on its own checks | **`gaps` writes the follow-up request for whichever builder produced the tree** |
 | Reproducibility | Evidence export/import | Evidence library inside the project | **Hash-chained ledger; `prove` recomputes every recorded file** |
 | Needs an engine installed | Yes (Ghidra for depth) | Yes (106 MB Rust binary) | **No** |
-| DSH integration | MCP bridge plugin | MCP bridge plugin | **Native Cordis plugin: 7 tools, no bridge process, ships its own skill** |
+| DSH integration | MCP bridge plugin | MCP bridge plugin | **Native Cordis plugin: 8 tools, no bridge process, ships its own skill** |
 
 The claim is narrow and meant to be checked: both partners close the loop **inside their own
 runtime and project format**. ReaCraft closes it at the contract layer — a plain folder of
@@ -61,7 +98,7 @@ npm i -g reacraft        # or: npm link   from this checkout
 reacraft probe
 ```
 
-As a DeepSeek Harness plugin (7 tools, no MCP bridge):
+As a DeepSeek Harness plugin (8 tools, no MCP bridge):
 
 ```bash
 dsh plugin --profile desktop add link:<absolute path to this checkout>
@@ -153,7 +190,7 @@ report says so; the score is meant to be a floor to argue with, not a certificat
 | `src/core/report.mjs` | report.md / report.json / report.html |
 | `src/core/partners.mjs` | optional REA and craft-anything CLI wrappers |
 | `src/cli.mjs` | the CLI |
-| `dsh/host/index.js` | the DSH plugin: 7 tools on `ctx.tools` |
+| `dsh/host/index.js` | the DSH plugin: 8 tools on `ctx.tools` |
 | `skill/rea-craft/SKILL.md` | the agent-facing playbook |
 | `docs/CONTRACT.md` · [`CONTRACT.zh.md`](docs/CONTRACT.zh.md) | schema shapes and the exact scoring rule |
 | `CHANGELOG.md` | what changed between versions |
@@ -243,6 +280,40 @@ Or skip the wiring — this repository is also a composite action:
 
 It writes the score into the job summary, fails below the gate, and uploads the SARIF when the job
 has `security-events: write`.
+
+## Questions people actually ask
+
+**"Why not just use REA?"** You should — for reading. REA is 241 MCP tools over Ghidra, IDA, Frida
+and a dozen other engines, and it will out-read this on any target that has a parser here.
+`reacraft rea <target> --deep` hands the deep read to REA and keeps its evidence. What ReaCraft adds
+is the layer after the read: obligations with acceptance tests, a score, and a fix plan.
+
+**"Why not just use craft-anything?"** Also yes, for rebuilding. Point `verify --rebuild` at
+`<craft project>/app` and you get an outside score for a build craft-anything made. Its own checks
+are sharper for websites (pixels, layout); this one works for any tree, including one a person
+typed.
+
+**"Does 100% mean the rebuild is correct?"** No. It means every obligation that could be judged was
+satisfied. Manual obligations have to be signed by someone, `pending` items are excluded from the
+score, and coverage counts presence, not behaviour. `docs/CONTRACT.md` is the exact rule.
+
+**"Does it run my target?"** No. Not the parser, not the scorer, and not `decode` — recovering a
+masked literal is arithmetic over integer arrays the file itself carries. The only subprocesses are
+the two optional partner CLIs, and only when you pass `--deep` or `--run`.
+
+**"Why zero dependencies?"** Because a tool that reads one file should run in any CI, on any OS,
+without a 106 MB download or a Node version fight. `node --test`, `bench` and every command here run
+on Node 18 with no install step.
+
+**"What can it read?"** PE (imports, exports, delay imports, signature, overlay), ELF (sections,
+dynsym, DT_NEEDED, interpreter), Mach-O (segments, dylibs, fat check), APK / JAR / ZIP, Electron
+ASAR (manifest, integrity), WASM, `.pyc`, and plain scripts. It reads the container; it does not
+disassemble.
+
+**"What about packed or encrypted targets?"** The container is still readable — a shield adds bytes,
+it does not rewrite the structure. `shield` says what it recognised, marks decoys, and reports
+masked literals as recovered or unreadable. `decode` handles the split-share construction; other
+constructions are not guessed at.
 
 ## Limits, stated up front
 
